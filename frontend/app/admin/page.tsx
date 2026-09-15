@@ -11,10 +11,17 @@ export default function AdminPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'properties' | 'clients'>('appointments');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'properties' | 'clients' | 'calendar'>('appointments');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'CONFIRMED' | 'PENDING'>('ALL');
   const router = useRouter();
   const { notifications, unreadCount } = useNotifications();
+
+  // Calendar state
+  const [selectedProperty, setSelectedProperty] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [slotsData, setSlotsData] = useState<any>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [blockingAll, setBlockingAll] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -43,6 +50,51 @@ export default function AdminPage() {
   const filteredAppointments = getFilteredAppointments();
   const confirmedCount = appointments.filter((apt) => apt.status === 'CONFIRMED').length;
   const pendingCount = appointments.filter((apt) => apt.status === 'PENDING').length;
+
+  const fetchSlots = async () => {
+    if (!selectedProperty || !selectedDate) return;
+    setLoadingSlots(true);
+    try {
+      const response = await api.get(`/calendar/available/${selectedProperty}`, {
+        params: { date: selectedDate },
+      });
+      setSlotsData(response.data);
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const blockAllSlots = async (type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') => {
+    if (!selectedProperty || !selectedDate) return;
+    setBlockingAll(true);
+    try {
+      await api.post(`/calendar/block/${selectedProperty}`, null, {
+        params: { date: selectedDate, type },
+      });
+      await fetchSlots();
+    } catch (error) {
+      console.error('Error blocking slots:', error);
+      alert('Error updating slots');
+    } finally {
+      setBlockingAll(false);
+    }
+  };
+
+  const cycleSlotType = async (slot: any) => {
+    const types: ('AVAILABLE' | 'RESERVED' | 'BLOCKED')[] = ['AVAILABLE', 'RESERVED', 'BLOCKED'];
+    const currentIndex = types.indexOf(slot.type);
+    const nextType = types[(currentIndex + 1) % types.length];
+
+    try {
+      await api.put(`/calendar/slots/${slot.id}`, { type: nextType });
+      await fetchSlots();
+    } catch (error) {
+      console.error('Error updating slot:', error);
+      alert('Error updating slot');
+    }
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
@@ -137,6 +189,14 @@ export default function AdminPage() {
             }`}
           >
             Clients ({clients.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            className={`px-4 py-2 rounded-lg ${
+              activeTab === 'calendar' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+            }`}
+          >
+            🗓️ Calendar
           </button>
         </div>
 
@@ -278,6 +338,165 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'calendar' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">🗓️ Calendar - Manage Time Availability</h2>
+              </div>
+
+              {/* Property and Date Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Property</label>
+                  <select
+                    value={selectedProperty}
+                    onChange={(e) => setSelectedProperty(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="">-- Choose Property --</option>
+                    {properties.map((prop) => (
+                      <option key={prop.id} value={prop.id}>{prop.address}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={fetchSlots}
+                    disabled={!selectedProperty || loadingSlots}
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {loadingSlots ? 'Loading...' : '🔍 Load Slots'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              {selectedProperty && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <h3 className="font-medium text-blue-900 mb-2">Quick Actions for this Property</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => blockAllSlots('AVAILABLE')}
+                      disabled={blockingAll}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
+                    >
+                      ✅ Set All as Available
+                    </button>
+                    <button
+                      onClick={() => blockAllSlots('RESERVED')}
+                      disabled={blockingAll}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm disabled:opacity-50"
+                    >
+                      ⏰ Set All as Reserved (Personal Use)
+                    </button>
+                    <button
+                      onClick={() => blockAllSlots('BLOCKED')}
+                      disabled={blockingAll}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
+                    >
+                      🔒 Block All (Unavailable)
+                    </button>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-2">
+                    💡 These actions will set the entire day for the selected property.
+                  </p>
+                </div>
+              )}
+
+              {/* Slots Display */}
+              {slotsData && (
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-3">
+                    Slots for {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </h3>
+
+                  {/* Appointments Section */}
+                  {slotsData.appointments && slotsData.appointments.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Existing Appointments</h4>
+                      <div className="space-y-2">
+                        {slotsData.appointments.map((apt: any) => (
+                          <div key={apt.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">
+                                {new Date(apt.timeSet).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="text-sm text-gray-500 ml-2">
+                                - {apt.client?.name} {apt.client?.lastName1}
+                              </span>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              apt.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                              apt.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {apt.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time Slots Section */}
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">⏱️ Time Slots</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {slotsData.slots.map((slot: any) => (
+                      <div
+                        key={slot.id}
+                        className={`p-4 rounded-lg border-2 ${
+                          slot.type === 'AVAILABLE' ? 'bg-green-50 border-green-200' :
+                          slot.type === 'RESERVED' ? 'bg-yellow-50 border-yellow-200' :
+                          'bg-red-50 border-red-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {new Date(slot.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {' - '}
+                              {new Date(slot.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {slot.type === 'AVAILABLE' ? '✅ Available for booking' :
+                               slot.type === 'RESERVED' ? '⏰ Reserved (personal use)' :
+                               '🔒 Blocked (unavailable)'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => cycleSlotType(slot)}
+                            className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!slotsData && !loadingSlots && (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-4xl mb-3">🗓️</div>
+                  <p>Select a property and date, then click "Load Slots" to manage availability</p>
                 </div>
               )}
             </div>
