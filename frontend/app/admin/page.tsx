@@ -680,10 +680,60 @@ function CalendarTab({
             ))}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const status = getDayStatus(day);
-              const appointments = getDayAppointments(day);
-              const isSelected = selectedDate === `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const isSelected = selectedDate === dateStr;
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
+
+              const daySlots = monthData?.slots?.filter((s: any) => {
+                return new Date(s.date).toISOString().split('T')[0] === dateStr;
+              }) || [];
+
+              const dayAppointments = monthData?.appointments?.filter((apt: any) => {
+                return apt.dateSet.split('T')[0] === dateStr;
+              }) || [];
+
+              const propertyBreakdown: Record<string, Record<string, number>> = {};
+              let hasPersonalTime = false;
+              let personalMinutes = 0;
+
+              daySlots.forEach((slot: any) => {
+                if (!propertyBreakdown[slot.propertyId]) {
+                  propertyBreakdown[slot.propertyId] = { AVAILABLE: 0, RESERVED: 0, BLOCKED: 0 };
+                }
+                propertyBreakdown[slot.propertyId][slot.type] = (propertyBreakdown[slot.propertyId][slot.type] || 0) + 1;
+                if (slot.type === 'RESERVED') {
+                  hasPersonalTime = true;
+                  const start = new Date(slot.startTime);
+                  const end = new Date(slot.endTime);
+                  personalMinutes += (end.getTime() - start.getTime()) / 60000;
+                }
+              });
+
+              const dominantType = daySlots.length > 0
+                ? daySlots.reduce((acc: any, slot: any) => {
+                    acc[slot.type] = (acc[slot.type] || 0) + 1;
+                    return acc;
+                  }, {})
+                : {};
+              const dominantSlotType = Object.keys(dominantType).length > 0
+                ? Object.keys(dominantType).reduce((a: string, b: string) => dominantType[a] > dominantType[b] ? a : b)
+                : null;
+
+              const dayColors: Record<string, string> = {
+                AVAILABLE: 'bg-green-50 border-green-300',
+                RESERVED: 'bg-yellow-50 border-yellow-300',
+                BLOCKED: 'bg-red-50 border-red-300',
+              };
+              const dayTextColors: Record<string, string> = {
+                AVAILABLE: 'text-green-700',
+                RESERVED: 'text-yellow-700',
+                BLOCKED: 'text-red-700',
+              };
+              const dayDotColors: Record<string, string> = {
+                AVAILABLE: 'bg-green-500',
+                RESERVED: 'bg-yellow-500',
+                BLOCKED: 'bg-red-500',
+              };
 
               return (
                 <button
@@ -694,27 +744,49 @@ function CalendarTab({
                       ? 'border-blue-500 bg-blue-50'
                       : isToday
                       ? 'border-blue-300 bg-blue-50'
-                      : status
-                      ? `border ${dayBorders[status]}`
+                      : daySlots.length > 0
+                      ? dayColors[dominantSlotType!] || 'border-gray-200'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex flex-col h-full">
                     <span className={`text-sm font-medium ${
-                      status === 'blocked' ? 'text-red-700' :
-                      status === 'reserved' ? 'text-yellow-700' :
-                      status === 'available' ? 'text-green-700' :
-                      isToday ? 'text-blue-700' : 'text-gray-700'
+                      isToday ? 'text-blue-700' :
+                      daySlots.length > 0 ? dayTextColors[dominantSlotType!] || 'text-gray-700' : 'text-gray-700'
                     }`}>
                       {day}
                     </span>
-                    {status && (
-                      <span className={`text-xs px-1 py-0.5 rounded mt-auto ${dayStatusColors[status]}`}>
-                        {status === 'available' ? '✓' : status === 'blocked' ? '✕' : status === 'reserved' ? '⏰' : '◐'}
+                    {daySlots.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 mt-1">
+                        {Object.entries(propertyBreakdown).slice(0, 3).map(([propId, counts]) => {
+                          const prop = properties.find((p: any) => p.id === propId);
+                          const hasAvailable = (counts.AVAILABLE || 0) > 0;
+                          const hasReserved = (counts.RESERVED || 0) > 0;
+                          const hasBlocked = (counts.BLOCKED || 0) > 0;
+                          return (
+                            <div key={propId} className="flex flex-col items-center" title={prop?.address || propId}>
+                              <span className="text-[8px] truncate w-full text-center text-gray-400 leading-none" style={{ fontSize: '7px' }}>
+                                {prop?.address?.split(' ').pop() || '?'}
+                              </span>
+                              <div className="flex gap-0.5">
+                                {hasAvailable && <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
+                                {hasReserved && <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />}
+                                {hasBlocked && <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {hasPersonalTime && (
+                      <span className="text-[8px] text-purple-600 mt-auto" title={`${Math.round(personalMinutes)} min personal time`}>
+                        ⏰{Math.round(personalMinutes / 60)}h
                       </span>
                     )}
-                    {appointments && appointments.length > 0 && (
-                      <span className="text-xs text-blue-600 mt-auto">{appointments.length}</span>
+                    {dayAppointments.length > 0 && (
+                      <span className="text-[8px] text-blue-600 mt-auto" title={`${dayAppointments.length} appointment(s)`}>
+                        📋{dayAppointments.length}
+                      </span>
                     )}
                   </div>
                 </button>
@@ -722,12 +794,122 @@ function CalendarTab({
             })}
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-4 text-xs text-gray-600">
-            <span className="flex items-center"><span className="w-3 h-3 bg-green-100 border border-green-400 rounded mr-1"></span> Available</span>
-            <span className="flex items-center"><span className="w-3 h-3 bg-yellow-100 border border-yellow-400 rounded mr-1"></span> Reserved</span>
-            <span className="flex items-center"><span className="w-3 h-3 bg-red-100 border border-red-400 rounded mr-1"></span> Blocked</span>
-            <span className="flex items-center"><span className="w-3 h-3 bg-gray-100 border border-gray-400 rounded mr-1"></span> Mixed</span>
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+              <span className="flex items-center"><span className="w-3 h-3 bg-green-500 rounded-full mr-1"></span> Available</span>
+              <span className="flex items-center"><span className="w-3 h-3 bg-yellow-500 rounded-full mr-1"></span> Reserved (Personal)</span>
+              <span className="flex items-center"><span className="w-3 h-3 bg-red-500 rounded-full mr-1"></span> Blocked</span>
+            </div>
+            <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+              <span className="flex items-center"><span className="text-purple-600 mr-1">⏰</span> Personal time shown</span>
+              <span className="flex items-center"><span className="text-blue-600 mr-1">📋</span> Appointments count</span>
+              <span className="flex items-center"><span className="text-blue-500 mr-1">●</span> Today</span>
+              <span className="flex items-center"><span className="border border-blue-500 rounded mr-1 px-0.5 text-blue-500">●</span> Selected day</span>
+            </div>
           </div>
+
+          {monthData && monthData.slots && monthData.slots.length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-base font-semibold text-gray-900 mb-3">
+                Slots by Property - {monthNames[currentMonth]} {currentYear}
+              </h4>
+              <div className="space-y-4">
+                {properties.map((prop: any) => {
+                  const propSlots = monthData.slots.filter((s: any) => s.propertyId === prop.id);
+                  if (propSlots.length === 0) return null;
+
+                  const monthSlotsByDate: Record<string, any[]> = {};
+                  propSlots.forEach((slot: any) => {
+                    const slotDate = new Date(slot.date).toISOString().split('T')[0];
+                    if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
+                    monthSlotsByDate[slotDate].push(slot);
+                  });
+
+                  return (
+                    <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="text-sm font-semibold text-gray-900">
+                          🏠 {prop.address}
+                        </h5>
+                        <div className="flex items-center gap-3 text-xs">
+                          {(() => {
+                            const counts = propSlots.reduce((acc: any, slot: any) => {
+                              acc[slot.type] = (acc[slot.type] || 0) + 1;
+                              return acc;
+                            }, {});
+                            return (
+                              <>
+                                {counts.AVAILABLE > 0 && (
+                                  <span className="flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>{counts.AVAILABLE}</span>
+                                )}
+                                {counts.RESERVED > 0 && (
+                                  <span className="flex items-center"><span className="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>{counts.RESERVED}</span>
+                                )}
+                                {counts.BLOCKED > 0 && (
+                                  <span className="flex items-center"><span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>{counts.BLOCKED}</span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {weekDays.map((day) => (
+                          <div key={day} className="text-center text-[10px] font-medium text-gray-400 py-1">
+                            {day}
+                          </div>
+                        ))}
+                        {Array.from({ length: firstDay }).map((_, i) => (
+                          <div key={`empty-${i}`} className="h-8" />
+                        ))}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                          const daySlots = monthSlotsByDate[dateStr] || [];
+                          const hasAvailable = daySlots.some((s: any) => s.type === 'AVAILABLE');
+                          const hasReserved = daySlots.some((s: any) => s.type === 'RESERVED');
+                          const hasBlocked = daySlots.some((s: any) => s.type === 'BLOCKED');
+                          const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
+
+                          return (
+                            <div
+                              key={day}
+                              className={`h-8 rounded flex items-center justify-center text-[9px] ${
+                                daySlots.length === 0
+                                  ? 'bg-gray-50'
+                                  : hasAvailable && !hasReserved && !hasBlocked
+                                  ? 'bg-green-100 text-green-700'
+                                  : hasReserved && hasBlocked
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : hasReserved
+                                  ? 'bg-yellow-50 text-yellow-600'
+                                  : hasBlocked
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-green-50 text-green-600'
+                              } ${isToday ? 'ring-1 ring-blue-400' : ''}`}
+                            >
+                              {daySlots.length > 0 ? (
+                                <div className="flex flex-col items-center leading-none">
+                                  <span className="font-medium">{daySlots.length}</span>
+                                  <div className="flex gap-0.5 mt-0.5">
+                                    {hasAvailable && <span className="w-1 h-1 bg-green-500 rounded-full" />}
+                                    {hasReserved && <span className="w-1 h-1 bg-yellow-500 rounded-full" />}
+                                    {hasBlocked && <span className="w-1 h-1 bg-red-500 rounded-full" />}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300">{day}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
