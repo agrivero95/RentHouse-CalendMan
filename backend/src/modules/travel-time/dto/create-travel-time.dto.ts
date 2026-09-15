@@ -3,11 +3,11 @@ import { IsNotEmpty, IsUUID, IsOptional, IsInt, Min } from 'class-validator';
 export class CreateTravelTimeDto {
   @IsNotEmpty()
   @IsUUID()
-  propertyId1: string;
+  propertyId1!: string;
 
   @IsNotEmpty()
   @IsUUID()
-  propertyId2: string;
+  propertyId2!: string;
 
   @IsOptional()
   @IsInt()

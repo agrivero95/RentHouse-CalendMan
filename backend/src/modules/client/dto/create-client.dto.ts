@@ -3,11 +3,11 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, IsPhoneNumber } from 'class-
 export class CreateClientDto {
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   @IsNotEmpty()
   @IsString()
-  lastName1: string;
+  lastName1!: string;
 
   @IsOptional()
   @IsString()
@@ -15,11 +15,11 @@ export class CreateClientDto {
 
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @IsNotEmpty()
   @IsPhoneNumber()
-  phone: string;
+  phone!: string;
 
   @IsOptional()
   @IsString()

@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
-import { PrismaService } from '../../config/prisma.service';
+import { PrismaService } from '@/config/prisma.service';
 
 interface EmailData {
   to: string;
@@ -55,8 +53,10 @@ export class EmailService {
 
       this.logger.log(`Email sent to ${emailData.to}. Message ID: ${info.messageId}`);
       return true;
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${emailData.to}: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to send email to ${emailData.to}: ${errorMsg}`, errorStack);
       
       await this.prisma.emailLog.create({
         data: {
@@ -65,7 +65,7 @@ export class EmailService {
           body: emailData.html,
           appointmentId: emailData.appointmentId || null,
           status: 'failed',
-          error: error.message,
+          error: errorMsg,
         },
       });
 

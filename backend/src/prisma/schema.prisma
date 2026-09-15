@@ -55,14 +55,14 @@ model Property {
   owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   address     String
   description String?  @db.Text
-  pictures    String?  @db.JSON
+  pictures    String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  appointments Appointment[]
-
-  travelTimeFrom TravelTime[] @relation("PropertyToProperty")
-  travelTimeTo   TravelTime[] @relation("PropertyToProperty")
+  appointments    Appointment[]
+  timeSlots       TimeSlot[]
+  travelTimeFroms TravelTime[] @relation("PropertyFromTo")
+  travelTimeTos   TravelTime[] @relation("PropertyToProperty")
 
   @@map("properties")
 }
@@ -96,6 +96,10 @@ model Appointment {
   client       Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
   property     Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
+  notifications      Notification[]
+  emailLogs          EmailLog[]
+  confirmationTokens ConfirmationToken[]
+
   @@unique([clientId, dateSet, timeSet])
   @@index([dateSet, timeSet])
   @@index([propertyId, dateSet])
@@ -103,16 +107,16 @@ model Appointment {
 }
 
 model TimeSlot {
-  id          String        @id @default(uuid()) @db.Uuid()
-  propertyId  String        @db.Uuid()
-  date        DateTime
-  startTime   DateTime
-  endTime     DateTime
-  type        TimeSlotType  @default(AVAILABLE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id         String       @id @default(uuid()) @db.Uuid()
+  propertyId String        @db.Uuid()
+  date       DateTime
+  startTime  DateTime
+  endTime    DateTime
+  type       TimeSlotType  @default(AVAILABLE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  property    Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, date, startTime])
   @@index([propertyId, date])
@@ -120,15 +124,15 @@ model TimeSlot {
 }
 
 model TravelTime {
-  id            String   @id @default(uuid()) @db.Uuid()
-  propertyId1   String   @db.Uuid()
-  propertyId2   String   @db.Uuid()
-  duration      Int      @default(15)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(uuid()) @db.Uuid()
+  propertyId1 String   @db.Uuid()
+  propertyId2 String   @db.Uuid()
+  duration    Int      @default(15)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  propertyFrom  Property @relation("PropertyToProperty", fields: [propertyId1], references: [id], onDelete: Cascade)
-  propertyTo    Property @relation("PropertyToProperty", fields: [propertyId2], references: [id], onDelete: Cascade)
+  propertyFrom Property @relation("PropertyFromTo", fields: [propertyId1], references: [id], onDelete: Cascade)
+  propertyTo   Property @relation("PropertyToProperty", fields: [propertyId2], references: [id], onDelete: Cascade)
 
   @@unique([propertyId1, propertyId2])
   @@map("travel_times")
@@ -147,19 +151,19 @@ model AdminUser {
 }
 
 model Notification {
-  id          String           @id @default(uuid()) @db.Uuid()
-  appointmentId String         @db.Uuid()
-  recipientId String           @db.Uuid()
-  recipientType String         @db.VarChar(20)
-  type        NotificationType @default(SYSTEM)
-  title       String
-  message     String           @db.Text
-  status      NotificationStatus @default(PENDING)
-  data        String?          @db.JSON
-  sentAt      DateTime?
-  readAt      DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String             @id @default(uuid()) @db.Uuid()
+  appointmentId String             @db.Uuid()
+  recipientId   String             @db.Uuid()
+  recipientType String             @db.VarChar(20)
+  type          NotificationType   @default(SYSTEM)
+  title         String
+  message       String             @db.Text
+  status        NotificationStatus @default(PENDING)
+  data          String?            @db.Text
+  sentAt        DateTime?
+  readAt        DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
@@ -170,15 +174,15 @@ model Notification {
 }
 
 model EmailLog {
-  id          String   @id @default(uuid()) @db.Uuid()
-  to          String
-  subject     String
-  body        String   @db.Text
-  appointmentId String? @db.Uuid()
-  status      String   @default("pending")
-  error       String?  @db.Text
-  sentAt      DateTime?
-  createdAt   DateTime @default(now())
+  id            String    @id @default(uuid()) @db.Uuid()
+  to            String
+  subject       String
+  body          String    @db.Text
+  appointmentId String?   @db.Uuid()
+  status        String    @default("pending")
+  error         String?   @db.Text
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
 
   appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
@@ -188,12 +192,12 @@ model EmailLog {
 }
 
 model ConfirmationToken {
-  id          String   @id @default(uuid()) @db.Uuid()
-  appointmentId String @db.Uuid()
-  token       String   @unique
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  usedAt      DateTime?
+  id            String    @id @default(uuid()) @db.Uuid()
+  appointmentId String    @db.Uuid()
+  token         String    @unique
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  usedAt        DateTime?
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 

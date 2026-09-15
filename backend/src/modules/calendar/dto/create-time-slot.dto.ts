@@ -3,20 +3,20 @@ import { IsNotEmpty, IsUUID, IsDateString } from 'class-validator';
 export class CreateTimeSlotDto {
   @IsNotEmpty()
   @IsUUID()
-  propertyId: string;
+  propertyId!: string;
 
   @IsNotEmpty()
   @IsDateString()
-  date: string;
+  date!: string;
 
   @IsNotEmpty()
   @IsDateString()
-  startTime: string;
+  startTime!: string;
 
   @IsNotEmpty()
   @IsDateString()
-  endTime: string;
+  endTime!: string;
 
   @IsNotEmpty()
-  type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED';
+  type!: 'AVAILABLE' | 'RESERVED' | 'BLOCKED';
 }

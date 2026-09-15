@@ -3,17 +3,17 @@ import { IsNotEmpty, IsUUID, IsOptional, IsInt, Min } from 'class-validator';
 export class CreateAppointmentDto {
   @IsNotEmpty()
   @IsUUID()
-  clientId: string;
+  clientId!: string;
 
   @IsNotEmpty()
   @IsUUID()
-  propertyId: string;
+  propertyId!: string;
 
   @IsNotEmpty()
-  dateSet: Date;
+  dateSet!: Date;
 
   @IsNotEmpty()
-  timeSet: Date;
+  timeSet!: Date;
 
   @IsOptional()
   @IsInt()

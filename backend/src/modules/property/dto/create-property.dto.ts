@@ -3,11 +3,11 @@ import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 export class CreatePropertyDto {
   @IsNotEmpty()
   @IsUUID()
-  ownerId: string;
+  ownerId!: string;
 
   @IsNotEmpty()
   @IsString()
-  address: string;
+  address!: string;
 
   @IsOptional()
   @IsString()

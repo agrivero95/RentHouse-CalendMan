@@ -3,19 +3,19 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, IsPhoneNumber } from 'class-
 export class CreateOwnerDto {
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @IsNotEmpty()
   @IsPhoneNumber()
-  phone: string;
+  phone!: string;
 
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   @IsNotEmpty()
   @IsString()
-  lastName1: string;
+  lastName1!: string;
 
   @IsOptional()
   @IsString()
