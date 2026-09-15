@@ -30,11 +30,11 @@ export class CalendarController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    return this.calendarService.findSlotsByProperty(
-      propertyId,
-      new Date(startDate),
-      new Date(endDate),
-    );
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const localStart = new Date(sy, sm - 1, sd);
+    const localEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    return this.calendarService.findSlotsByProperty(propertyId, localStart, localEnd);
   }
 
   @Get('available/:propertyId')
@@ -42,7 +42,9 @@ export class CalendarController {
     @Param('propertyId') propertyId: string,
     @Query('date') date: string,
   ) {
-    return this.calendarService.getAvailableSlots(propertyId, new Date(date));
+    const [y, m, d] = date.split('-').map(Number);
+    const localDate = new Date(y, m - 1, d);
+    return this.calendarService.getAvailableSlots(propertyId, localDate);
   }
 
   @Post('slots')
@@ -73,7 +75,9 @@ export class CalendarController {
     @Query('date') date: string,
     @Query('type') type: 'RESERVED' | 'BLOCKED',
   ) {
-    return this.calendarService.blockPropertySlots(propertyId, new Date(date), type);
+    const [y, m, d] = date.split('-').map(Number);
+    const localDate = new Date(y, m - 1, d);
+    return this.calendarService.blockPropertySlots(propertyId, localDate, type);
   }
 
   @Get('month')
@@ -82,7 +86,9 @@ export class CalendarController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    return this.calendarService.getMonthSlots(new Date(startDate), new Date(endDate));
+    const localStart = new Date(startDate);
+    const localEnd = new Date(endDate);
+    return this.calendarService.getMonthSlots(localStart, localEnd);
   }
 
   @Post('custom-slots')

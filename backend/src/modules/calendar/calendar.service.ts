@@ -42,10 +42,11 @@ export class CalendarService {
   }
 
   async blockPropertySlots(propertyId: string, date: Date, type: 'RESERVED' | 'BLOCKED') {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
 
     return this.prisma.timeSlot.upsert({
       where: {
@@ -67,10 +68,11 @@ export class CalendarService {
   }
 
   async getAvailableSlots(propertyId: string, date: Date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
 
     const slots = await this.prisma.timeSlot.findMany({
       where: {
@@ -101,11 +103,14 @@ export class CalendarService {
   }
 
   async getMonthSlots(startDate: Date, endDate: Date) {
+    const startLocal = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const endLocal = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+
     const slots = await this.prisma.timeSlot.findMany({
       where: {
         date: {
-          gte: startDate,
-          lte: endDate,
+          gte: startLocal,
+          lte: endLocal,
         },
       },
       orderBy: { date: 'asc' },
@@ -114,8 +119,8 @@ export class CalendarService {
     const appointments = await this.prisma.appointment.findMany({
       where: {
         dateSet: {
-          gte: startDate,
-          lte: endDate,
+          gte: startLocal,
+          lte: endLocal,
         },
       },
       select: { id: true, dateSet: true, timeSet: true, duration: true, clientId: true, propertyId: true },
@@ -128,11 +133,11 @@ export class CalendarService {
   }
 
   async createCustomSlots(propertyId: string, date: string, startTime: string, endTime: string, duration: number, type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') {
-    const slotDate = new Date(date);
-    slotDate.setHours(0, 0, 0, 0);
-
     const start = new Date(`${date}T${startTime}`);
     const end = new Date(`${date}T${endTime}`);
+
+    const slotDate = new Date(start);
+    slotDate.setHours(0, 0, 0, 0);
 
     const createdSlots: any[] = [];
     const durationMs = duration * 60 * 1000;
