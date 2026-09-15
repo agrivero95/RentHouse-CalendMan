@@ -566,7 +566,7 @@ function CalendarTab({
     if (!selectedProperty || !monthData) return null;
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const daySlots = monthData.slots?.filter((s: any) => {
-      const slotDate = new Date(s.date).toISOString().split('T')[0];
+      const slotDate = s.date.startsWith('20') ? s.date.split('T')[0] : s.date;
       return slotDate === dateStr && s.propertyId === selectedProperty;
     });
     if (!daySlots || daySlots.length === 0) return null;
@@ -685,7 +685,8 @@ function CalendarTab({
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
 
               const daySlots = monthData?.slots?.filter((s: any) => {
-                return new Date(s.date).toISOString().split('T')[0] === dateStr;
+                const slotDate = s.date.startsWith('20') ? s.date.split('T')[0] : s.date;
+                return slotDate === dateStr;
               }) || [];
 
               const dayAppointments = monthData?.appointments?.filter((apt: any) => {
@@ -818,12 +819,12 @@ function CalendarTab({
                   const propSlots = monthData.slots.filter((s: any) => s.propertyId === prop.id);
                   if (propSlots.length === 0) return null;
 
-                  const monthSlotsByDate: Record<string, any[]> = {};
-                  propSlots.forEach((slot: any) => {
-                    const slotDate = new Date(slot.date).toISOString().split('T')[0];
-                    if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
-                    monthSlotsByDate[slotDate].push(slot);
-                  });
+                   const monthSlotsByDate: Record<string, any[]> = {};
+                   propSlots.forEach((slot: any) => {
+                     const slotDate = slot.date.startsWith('20') ? slot.date.split('T')[0] : slot.date;
+                     if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
+                     monthSlotsByDate[slotDate].push(slot);
+                   });
 
                   return (
                     <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-4">
