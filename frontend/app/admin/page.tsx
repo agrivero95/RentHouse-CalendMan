@@ -699,7 +699,7 @@ function CalendarTab({
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
 
               const daySlots = monthData?.slots?.filter((s: any) => {
-                const slotDate = s.date.startsWith('20') ? s.date.split('T')[0] : s.date;
+                const slotDate = typeof s.date === 'string' ? s.date.split('T')[0] : (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
                 return slotDate === dateStr;
               }) || [];
 
@@ -833,12 +833,12 @@ function CalendarTab({
                   const propSlots = monthData.slots.filter((s: any) => s.propertyId === prop.id);
                   if (propSlots.length === 0) return null;
 
-                  const monthSlotsByDate: Record<string, any[]> = {};
-                  propSlots.forEach((slot: any) => {
-                    const slotDate = slot.date.startsWith('20') ? slot.date.split('T')[0] : slot.date;
-                    if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
-                    monthSlotsByDate[slotDate].push(slot);
-                  });
+                   const monthSlotsByDate: Record<string, any[]> = {};
+                   propSlots.forEach((slot: any) => {
+                     const slotDate = typeof slot.date === 'string' ? slot.date.split('T')[0] : (() => { const d = new Date(slot.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+                     if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
+                     monthSlotsByDate[slotDate].push(slot);
+                   });
 
                   return (
                     <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-4">
