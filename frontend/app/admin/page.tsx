@@ -1086,7 +1086,7 @@ function CalendarTab({
           {slotsData && (
             <div>
               <h3 className="font-medium text-gray-900 mb-3">
-                Slots for {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                Slots for {(() => { const [y, m, d] = selectedDate.split('-').map(Number); const date = new Date(y, m - 1, d); return date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); })()}
               </h3>
 
               {slotsData.appointments && slotsData.appointments.length > 0 && (
