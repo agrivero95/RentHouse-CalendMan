@@ -819,12 +819,12 @@ function CalendarTab({
                   const propSlots = monthData.slots.filter((s: any) => s.propertyId === prop.id);
                   if (propSlots.length === 0) return null;
 
-                   const monthSlotsByDate: Record<string, any[]> = {};
-                   propSlots.forEach((slot: any) => {
-                     const slotDate = slot.date.startsWith('20') ? slot.date.split('T')[0] : slot.date;
-                     if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
-                     monthSlotsByDate[slotDate].push(slot);
-                   });
+                  const monthSlotsByDate: Record<string, any[]> = {};
+                  propSlots.forEach((slot: any) => {
+                    const slotDate = slot.date.startsWith('20') ? slot.date.split('T')[0] : slot.date;
+                    if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
+                    monthSlotsByDate[slotDate].push(slot);
+                  });
 
                   return (
                     <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-4">
