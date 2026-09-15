@@ -95,7 +95,20 @@ export interface TravelTime {
 
 export const propertiesApi = {
   getAll: () => api.get('/properties/public'),
+  getAllAdmin: () => api.get('/properties'),
   getById: (id: string) => api.get(`/properties/${id}`),
+  create: (data: Partial<Property>) => api.post('/properties', data),
+  update: (id: string, data: Partial<Property>) => api.put(`/properties/${id}`, data),
+  remove: (id: string) => api.delete(`/properties/${id}`),
+  getByOwner: (ownerId: string) => api.get(`/properties/owner/${ownerId}`),
+};
+
+export const ownersApi = {
+  getAll: () => api.get('/owners'),
+  getById: (id: string) => api.get(`/owners/${id}`),
+  create: (data: Partial<Owner>) => api.post('/owners', data),
+  update: (id: string, data: Partial<Owner>) => api.put(`/owners/${id}`, data),
+  remove: (id: string) => api.delete(`/owners/${id}`),
 };
 
 export const clientsApi = {
@@ -120,6 +133,8 @@ export const calendarApi = {
     api.get(`/calendar/available/${propertyId}`, { params: { date } }),
   blockSlots: (propertyId: string, date: string, type: string) =>
     api.post(`/calendar/block/${propertyId}`, null, { params: { date, type } }),
+  getMonthSlots: (startDate: string, endDate: string) =>
+    api.get('/calendar/month', { params: { startDate, endDate } }),
 };
 
 export const notificationsApi = {

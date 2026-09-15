@@ -75,4 +75,21 @@ export class CalendarController {
   ) {
     return this.calendarService.blockPropertySlots(propertyId, new Date(date), type);
   }
+
+  @Get('month')
+  @UseGuards(AdminGuard)
+  getMonthSlots(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.calendarService.getMonthSlots(new Date(startDate), new Date(endDate));
+  }
+
+  @Post('custom-slots')
+  @UseGuards(AdminGuard)
+  createCustomSlots(
+    @Body() body: { propertyId: string; date: string; startTime: string; endTime: string; duration: number; type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED' },
+  ) {
+    return this.calendarService.createCustomSlots(body.propertyId, body.date, body.startTime, body.endTime, body.duration, body.type);
+  }
 }

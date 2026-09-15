@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 const sections = [
@@ -660,6 +660,18 @@ const sections = [
 
 export default function AdminDocsPage() {
   const [activeSection, setActiveSection] = useState('panel');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
