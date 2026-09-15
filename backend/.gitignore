@@ -1,11 +1,14 @@
 # Backend
-backend/dist/
-backend/node_modules/
-backend/.env
-backend/uploads/
+dist/
+node_modules/
+.env
+uploads/
 
 # Prisma
-backend/prisma/migrations/
+src/prisma/migrations/
+
+# TypeScript
+tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
