@@ -31,6 +31,13 @@ services:
       JWT_EXPIRATION: 86400
       CORS_ORIGIN: http://localhost:3001
       PORT: 3000
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: your-email@gmail.com
+      SMTP_PASS: your-app-password
+      SMTP_FROM: RentHouse CalendMan <noreply@renthouse-calendman.com>
+      FRONTEND_URL: http://localhost:3001
+      REMINDER_ENABLED: true
     ports:
       - "3000:3000"
     depends_on:

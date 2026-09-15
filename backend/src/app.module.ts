@@ -6,6 +6,7 @@ import { AppointmentModule } from './modules/appointment/appointment.module';
 import { TravelTimeModule } from './modules/travel-time/travel-time.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { PrismaModule } from './config/prisma.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { PrismaModule } from './config/prisma.module';
     TravelTimeModule,
     CalendarModule,
     AuthModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

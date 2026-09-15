@@ -8,6 +8,8 @@ import {
   Param,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -78,5 +80,11 @@ export class AppointmentController {
     @Query('date') date: string,
   ) {
     return this.appointmentService.findAvailableSlots(propertyId, new Date(date));
+  }
+
+  @Post('confirm/:token')
+  @HttpCode(HttpStatus.OK)
+  async confirmAppointment(@Param('token') token: string) {
+    return this.appointmentService.confirmAppointment(token);
   }
 }

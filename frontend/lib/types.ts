@@ -47,6 +47,34 @@ export interface Appointment {
   notes?: string;
   client?: Client;
   property?: Property;
+  notifications?: Notification[];
+  confirmationToken?: ConfirmationToken;
+}
+
+export interface Notification {
+  id: string;
+  appointmentId: string;
+  recipientId: string;
+  recipientType: string;
+  type: string;
+  title: string;
+  message: string;
+  status: 'PENDING' | 'SENT' | 'READ';
+  data?: any;
+  sentAt?: string;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  appointment?: Appointment;
+}
+
+export interface ConfirmationToken {
+  id: string;
+  appointmentId: string;
+  token: string;
+  expiresAt: string;
+  usedAt?: string;
+  createdAt: string;
 }
 
 export interface TimeSlot {
@@ -84,6 +112,7 @@ export const appointmentsApi = {
     api.get(`/appointments/property/${propertyId}`, { params: { startDate, endDate } }),
   getAvailableSlots: (propertyId: string, date: string) =>
     api.get(`/appointments/available-slots/${propertyId}`, { params: { date } }),
+  confirmByToken: (token: string) => api.post(`/appointments/confirm/${token}`),
 };
 
 export const calendarApi = {
@@ -91,4 +120,18 @@ export const calendarApi = {
     api.get(`/calendar/available/${propertyId}`, { params: { date } }),
   blockSlots: (propertyId: string, date: string, type: string) =>
     api.post(`/calendar/block/${propertyId}`, null, { params: { date, type } }),
+};
+
+export const notificationsApi = {
+  getUnread: (recipientId: string, recipientType: string) =>
+    api.get(`/notifications/unread/${recipientId}/${recipientType}`),
+  getAll: (recipientId: string, recipientType: string) =>
+    api.get(`/notifications/all/${recipientId}/${recipientType}`),
+  markAsRead: (id: string) => api.put(`/notifications/read/${id}`),
+  getAdmin: () => api.get('/notifications/admin'),
+  getAppointment: (appointmentId: string) =>
+    api.get(`/notifications/appointment/${appointmentId}`),
+  getPendingConfirmation: () => api.get('/notifications/pending-confirmation'),
+  sendReminder: (appointmentId: string) =>
+    api.post(`/notifications/send-reminder/${appointmentId}`),
 };
