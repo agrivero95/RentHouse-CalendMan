@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum TimeSlotType {
+  AVAILABLE
+  RESERVED
+  BLOCKED
+}
+
+model Owner {
+  id        String   @id @default(uuid()) @db.Uuid()
+  email     String   @unique
+  phone     String
+  name      String
+  lastName1 String
+  lastName2 String?  @db.VarChar(100)
+  picture   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties Property[]
+
+  @@map("owners")
+}
+
+model Property {
+  id          String   @id @default(uuid()) @db.Uuid()
+  ownerId     String   @db.Uuid()
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  address     String
+  description String?  @db.Text
+  pictures    String?  @db.JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments Appointment[]
+
+  travelTimeFrom TravelTime[] @relation("PropertyToProperty")
+  travelTimeTo   TravelTime[] @relation("PropertyToProperty")
+
+  @@map("properties")
+}
+
+model Client {
+  id        String   @id @default(uuid()) @db.Uuid()
+  name      String
+  lastName1 String
+  lastName2 String?  @db.VarChar(100)
+  email     String
+  phone     String
+  picture   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@map("clients")
+}
+
+model Appointment {
+  id           String             @id @default(uuid()) @db.Uuid()
+  createdAt    DateTime           @default(now())
+  dateSet      DateTime
+  timeSet      DateTime
+  duration     Int               @default(15)
+  clientId     String             @db.Uuid()
+  propertyId   String             @db.Uuid()
+  status       AppointmentStatus  @default(PENDING)
+  notes        String?            @db.Text
+  client       Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  property     Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, dateSet, timeSet])
+  @@index([dateSet, timeSet])
+  @@index([propertyId, dateSet])
+  @@map("appointments")
+}
+
+model TimeSlot {
+  id          String        @id @default(uuid()) @db.Uuid()
+  propertyId  String        @db.Uuid()
+  date        DateTime
+  startTime   DateTime
+  endTime     DateTime
+  type        TimeSlotType  @default(AVAILABLE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  property    Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, date, startTime])
+  @@index([propertyId, date])
+  @@map("time_slots")
+}
+
+model TravelTime {
+  id            String   @id @default(uuid()) @db.Uuid()
+  propertyId1   String   @db.Uuid()
+  propertyId2   String   @db.Uuid()
+  duration      Int      @default(15)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  propertyFrom  Property @relation("PropertyToProperty", fields: [propertyId1], references: [id], onDelete: Cascade)
+  propertyTo    Property @relation("PropertyToProperty", fields: [propertyId2], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId1, propertyId2])
+  @@map("travel_times")
+}
+
+model AdminUser {
+  id        String   @id @default(uuid()) @db.Uuid()
+  username  String   @unique
+  password  String
+  email     String   @unique
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_users")
+}

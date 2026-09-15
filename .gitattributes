@@ -1,0 +1,12 @@
+[core]
+autocrlf = true
+whitespace = cr-at-eol
+
+[init]
+defaultBranch = main
+
+[fileMode]
+false
+
+[diff]
+autocrlf = true
