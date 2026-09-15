@@ -126,6 +126,17 @@ export default function AdminPage() {
     }
   };
 
+  const deleteSlot = async (id: string) => {
+    if (!confirm('Delete this time slot?')) return;
+    try {
+      await api.delete(`/calendar/slots/${id}`);
+      await fetchSlots();
+    } catch (err: any) {
+      console.error('Error deleting slot:', err);
+      alert(err.response?.data?.message || 'Error deleting slot');
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   const navItems = [
@@ -445,6 +456,7 @@ export default function AdminPage() {
               blockAllSlots={blockAllSlots}
               blockingAll={blockingAll}
               cycleSlotType={cycleSlotType}
+              deleteSlot={deleteSlot}
             />
           )}
         </div>
@@ -466,6 +478,7 @@ function CalendarTab({
   blockAllSlots,
   blockingAll,
   cycleSlotType,
+  deleteSlot,
 }: {
   properties: any[];
   selectedProperty: string;
@@ -479,6 +492,7 @@ function CalendarTab({
   blockAllSlots: (type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') => Promise<void>;
   blockingAll: boolean;
   cycleSlotType: (slot: any) => Promise<void>;
+  deleteSlot: (id: string) => Promise<void>;
 }) {
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -1136,12 +1150,20 @@ function CalendarTab({
                                  '🔒 Blocked (unavailable)'}
                               </div>
                             </div>
-                            <button
-                              onClick={() => cycleSlotType(slot)}
-                              className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
-                            >
-                              Change
-                            </button>
+                             <div className="flex space-x-1">
+                               <button
+                                 onClick={() => cycleSlotType(slot)}
+                                 className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
+                               >
+                                 Change
+                               </button>
+                               <button
+                                 onClick={() => deleteSlot(slot.id)}
+                                 className="text-xs px-2 py-1 rounded bg-white border border-red-300 text-red-600 hover:bg-red-50"
+                               >
+                                 Delete
+                               </button>
+                             </div>
                           </div>
                         </div>
                       ))}
