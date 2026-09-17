@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@/config/prisma.service';
 import { EmailService } from '../email/email.service';
+import { WebSocketService, WsEventTypes } from '@/gateway/websocket.service';
 import { fromISO } from '@/config/date.utils';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AppointmentReminderCron implements OnModuleInit, OnModuleDestroy {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
+    private websocketService: WebSocketService,
   ) {}
 
   onModuleInit() {
@@ -78,6 +80,14 @@ export class AppointmentReminderCron implements OnModuleInit, OnModuleDestroy {
         } else {
           this.logger.error(`Failed to send reminder for appointment ${appointment.id}`);
         }
+
+        this.websocketService.broadcast(WsEventTypes.APPOINTMENT_REMINDER, {
+          appointmentId: appointment.id,
+          clientId: appointment.clientId,
+          propertyId: appointment.propertyId,
+          timeSet: appointment.timeSet,
+          dateSet: appointment.dateSet,
+        });
       }
     }
 

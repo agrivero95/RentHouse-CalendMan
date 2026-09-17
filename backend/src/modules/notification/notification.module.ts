@@ -4,9 +4,10 @@ import { NotificationService } from './notification.service';
 import { EmailService } from './email/email.service';
 import { AppointmentReminderCron } from './cron/appointment-reminder.cron';
 import { ScheduleModule } from '@nestjs/schedule';
+import { WebSocketModule } from '@/gateway/websocket.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
+  imports: [ScheduleModule.forRoot(), WebSocketModule],
   controllers: [NotificationController],
   providers: [NotificationService, EmailService, AppointmentReminderCron],
   exports: [NotificationService, EmailService],
