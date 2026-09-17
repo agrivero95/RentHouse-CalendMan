@@ -95,18 +95,17 @@ export class CalendarService {
       const [d, m, y] = ddmmYYYY.split('-').map(Number);
       return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     };
+    const fromISO = (yyyyMMDD: string): string => {
+      const [y, m, d] = yyyyMMDD.split('-').map(Number);
+      return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+    };
     const startISO = toISO(startDate);
     const endISO = toISO(endDate);
+    const startDB = fromISO(startISO);
+    const endDB = fromISO(endISO);
 
-    const slots = await this.prisma.timeSlot.findMany({
-      where: {
-        date: {
-          gte: startISO,
-          lte: endISO,
-        },
-      },
-      orderBy: { date: 'asc' },
-    });
+    const allSlots = await this.prisma.timeSlot.findMany({ orderBy: { date: 'asc' } });
+    const slots = allSlots.filter((s: any) => s.date >= startDB && s.date <= endDB);
 
     const appointments = await this.prisma.appointment.findMany({
       where: {
