@@ -10,7 +10,7 @@ export default function Navbar() {
           </Link>
           <div className="flex space-x-4">
             <Link href="/properties" className="text-gray-700 hover:text-blue-600">
-              Properties
+              Propiedades
             </Link>
             <Link href="/login" className="text-gray-700 hover:text-blue-600">
               Admin

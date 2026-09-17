@@ -20,23 +20,23 @@ export default function PropertyDetailPage() {
     }
   }, [propertyId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!property) return <div className="min-h-screen flex items-center justify-center">Property not found</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  if (!property) return <div className="min-h-screen flex items-center justify-center">Propiedad no encontrada</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link href="/properties" className="btn-secondary mb-6 inline-block">
-          Back to Properties
+          Ver Propiedades
         </Link>
 
         <div className="card">
           <h1 className="text-3xl font-bold text-gray-900">{property.address}</h1>
-          <p className="text-gray-500 mt-4">{property.description || 'No description available'}</p>
+          <p className="text-gray-500 mt-4">{property.description || 'Sin descripción disponible'}</p>
 
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Owner</h3>
+              <h3 className="text-sm font-medium text-gray-500">Propietario</h3>
               <p className="mt-1">{property.owner?.name} {property.owner?.lastName1}</p>
             </div>
             <div>
@@ -44,9 +44,18 @@ export default function PropertyDetailPage() {
               <p className="mt-1">{property.owner?.email}</p>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Phone</h3>
+              <h3 className="text-sm font-medium text-gray-500">Teléfono</h3>
               <p className="mt-1">{property.owner?.phone}</p>
             </div>
+          </div>
+
+          <div className="mt-8 flex gap-4">
+            <Link href="/properties" className="btn-secondary flex-1 text-center">
+              Volver a Propiedades
+            </Link>
+            <Link href={`/booking/${property.id}`} className="btn-primary flex-1 text-center">
+              Agendar Cita
+            </Link>
           </div>
         </div>
       </div>

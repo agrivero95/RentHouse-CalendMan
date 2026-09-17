@@ -23,6 +23,7 @@ export default function BookingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   useEffect(() => {
     if (propertyId) {
@@ -32,9 +33,17 @@ export default function BookingPage() {
 
   const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setDate(e.target.value);
+    setSelectedSlot('');
     if (e.target.value && propertyId) {
-      const response = await appointmentsApi.getAvailableSlots(propertyId, e.target.value);
-      setAvailableSlots(response.data.slots || []);
+      setSlotsLoading(true);
+      try {
+        const response = await appointmentsApi.getAvailableSlots(propertyId, e.target.value);
+        setAvailableSlots(response.data.slots || []);
+      } catch {
+        setAvailableSlots([]);
+      } finally {
+        setSlotsLoading(false);
+      }
     }
   };
 
@@ -65,7 +74,7 @@ export default function BookingPage() {
       setSuccess(true);
       setStep(4);
     } catch (error) {
-      alert('Error creating appointment. Please try again.');
+      alert('Error al crear la cita. Por favor intente nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -75,10 +84,25 @@ export default function BookingPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="card max-w-md text-center">
-          <h2 className="text-2xl font-bold text-green-600 mb-4">Booking Confirmed!</h2>
-          <p className="text-gray-600 mb-6">Your appointment has been scheduled successfully.</p>
+          <div className="text-green-600 text-6xl mb-4">✓</div>
+          <h2 className="text-2xl font-bold text-green-600 mb-4">¡Cita Agendada!</h2>
+          <p className="text-gray-600 mb-2">Su cita ha sido programada exitosamente.</p>
+          <p className="text-gray-500 text-sm mb-6">
+            Recibirá un recordatorio 30 minutos antes de la cita.
+          </p>
+          <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
+            <p className="text-sm text-gray-600">
+              <strong>Propiedad:</strong> {property?.address}
+            </p>
+            <p className="text-sm text-gray-600">
+              <strong>Fecha:</strong> {date}
+            </p>
+            <p className="text-sm text-gray-600">
+              <strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
           <Link href="/" className="btn-primary inline-block">
-            Back to Home
+            Volver al Inicio
           </Link>
         </div>
       </div>
@@ -89,12 +113,12 @@ export default function BookingPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link href="/properties" className="btn-secondary mb-6 inline-block">
-          Back to Properties
+          Volver a Propiedades
         </Link>
 
         {property && (
           <div className="card mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Book Appointment</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Agendar Cita</h1>
             <p className="text-gray-500">{property.address}</p>
           </div>
         )}
@@ -120,7 +144,8 @@ export default function BookingPage() {
 
           {step === 1 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Select Date</h2>
+              <h2 className="text-xl font-semibold mb-4">Paso 1: Seleccione Fecha y Hora</h2>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha:</label>
               <input
                 type="date"
                 value={date}
@@ -129,24 +154,30 @@ export default function BookingPage() {
                 className="input-field mb-4"
                 required
               />
-              {availableSlots.length > 0 && (
+              {slotsLoading ? (
+                <div className="text-center py-8 text-gray-500">Cargando horarios disponibles...</div>
+              ) : availableSlots.length > 0 ? (
                 <div>
-                  <h3 className="font-medium mb-2">Available Time Slots</h3>
-                  <div className="grid grid-cols-3 gap-2">
+                  <h3 className="font-medium mb-2 text-gray-700">Horarios Disponibles</h3>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {availableSlots.map((slot: any) => (
                       <button
                         key={slot.start}
                         onClick={() => setSelectedSlot(slot.start)}
-                        className={`p-2 rounded-lg border ${
+                        className={`p-3 rounded-lg border-2 transition-all ${
                           selectedSlot === slot.start
-                            ? 'border-blue-600 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300'
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
-                        {new Date(slot.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(slot.start).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                       </button>
                     ))}
                   </div>
+                </div>
+              ) : date && (
+                <div className="text-center py-8 text-gray-500">
+                  No hay horarios disponibles para esta fecha
                 </div>
               )}
               <button
@@ -154,18 +185,21 @@ export default function BookingPage() {
                 disabled={!selectedSlot}
                 className="btn-primary mt-6 w-full disabled:opacity-50"
               >
-                Continue
+                Continuar
               </button>
             </div>
           )}
 
           {step === 2 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Your Information</h2>
+              <h2 className="text-xl font-semibold mb-4">Paso 2: Sus Datos Personales</h2>
+              <p className="text-gray-500 mb-4">
+                Por favor complete sus datos para registrar su información como cliente.
+              </p>
               <div className="space-y-4">
                 <input
                   type="text"
-                  placeholder="Name"
+                  placeholder="Nombre(s)"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
@@ -173,7 +207,7 @@ export default function BookingPage() {
                 />
                 <input
                   type="text"
-                  placeholder="Last Name 1"
+                  placeholder="Primer Apellido"
                   value={formData.lastName1}
                   onChange={(e) => setFormData({ ...formData, lastName1: e.target.value })}
                   className="input-field"
@@ -181,14 +215,14 @@ export default function BookingPage() {
                 />
                 <input
                   type="text"
-                  placeholder="Last Name 2 (Optional)"
+                  placeholder="Segundo Apellido (Opcional)"
                   value={formData.lastName2}
                   onChange={(e) => setFormData({ ...formData, lastName2: e.target.value })}
                   className="input-field"
                 />
                 <input
                   type="email"
-                  placeholder="Email"
+                  placeholder="Correo electrónico"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="input-field"
@@ -196,7 +230,7 @@ export default function BookingPage() {
                 />
                 <input
                   type="tel"
-                  placeholder="Phone"
+                  placeholder="Teléfono"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="input-field"
@@ -205,13 +239,14 @@ export default function BookingPage() {
               </div>
               <div className="flex gap-4 mt-6">
                 <button onClick={() => setStep(1)} className="btn-secondary w-full">
-                  Back
+                  Regresar
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  className="btn-primary w-full"
+                  disabled={!formData.name || !formData.lastName1 || !formData.email || !formData.phone}
+                  className="btn-primary w-full disabled:opacity-50"
                 >
-                  Continue
+                  Continuar
                 </button>
               </div>
             </div>
@@ -219,34 +254,43 @@ export default function BookingPage() {
 
           {step === 3 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Confirm Booking</h2>
+              <h2 className="text-xl font-semibold mb-4">Paso 3: Confirmar Reserva</h2>
+              <p className="text-gray-500 mb-4">
+                Revise los datos de su cita antes de confirmar.
+              </p>
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <p><strong>Date:</strong> {date}</p>
-                <p><strong>Time:</strong> {new Date(selectedSlot).toLocaleTimeString()}</p>
-                <p><strong>Duration:</strong> 15 minutes</p>
-                <p><strong>Property:</strong> {property?.address}</p>
-                <p><strong>Name:</strong> {formData.name} {formData.lastName1} {formData.lastName2}</p>
-                <p><strong>Email:</strong> {formData.email}</p>
-                <p><strong>Phone:</strong> {formData.phone}</p>
-                {formData.notes && <p><strong>Notes:</strong> {formData.notes}</p>}
+                <p className="text-gray-700"><strong>Propiedad:</strong> {property?.address}</p>
+                <p className="text-gray-700"><strong>Fecha:</strong> {date}</p>
+                <p className="text-gray-700"><strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs</p>
+                <p className="text-gray-700"><strong>Duración:</strong> 15 minutos</p>
+                <hr className="my-3" />
+                <p className="text-gray-700"><strong>Nombre:</strong> {formData.name} {formData.lastName1} {formData.lastName2 || ''}</p>
+                <p className="text-gray-700"><strong>Correo:</strong> {formData.email}</p>
+                <p className="text-gray-700"><strong>Teléfono:</strong> {formData.phone}</p>
+                {formData.notes && <p className="text-gray-700 mt-2"><strong>Notas:</strong> {formData.notes}</p>}
               </div>
               <textarea
-                placeholder="Notes (Optional)"
+                placeholder="Notas adicionales (Opcional)"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 className="input-field mb-4"
                 rows={3}
               />
+              <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                <p className="text-sm text-blue-700">
+                  ℹ️ Recibirá un recordatorio 30 minutos antes de su cita. Deberá confirmar su asistencia.
+                </p>
+              </div>
               <div className="flex gap-4">
                 <button onClick={() => setStep(2)} className="btn-secondary w-full">
-                  Back
+                  Regresar
                 </button>
                 <button
                   onClick={handleBooking}
                   disabled={loading}
                   className="btn-primary w-full disabled:opacity-50"
                 >
-                  {loading ? 'Booking...' : 'Confirm Booking'}
+                  {loading ? 'Agendando...' : 'Confirmar Reserva'}
                 </button>
               </div>
             </div>

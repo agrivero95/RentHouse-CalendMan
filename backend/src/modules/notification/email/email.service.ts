@@ -84,13 +84,19 @@ export class EmailService {
       return false;
     }
 
-    const confirmToken = await this.prisma.confirmationToken.create({
-      data: {
-        appointmentId,
-        token: this.generateToken(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
+    let confirmToken = await this.prisma.confirmationToken.findFirst({
+      where: { appointmentId },
     });
+
+    if (!confirmToken) {
+      confirmToken = await this.prisma.confirmationToken.create({
+        data: {
+          appointmentId,
+          token: this.generateToken(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+    }
 
     const confirmUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/confirm/${confirmToken.token}`;
     const appointmentDateTime = new Date(appointment.dateSet);
@@ -136,7 +142,85 @@ export class EmailService {
 
     return this.sendEmail({
       to: appointment.client.email,
-      subject: `Recordatorio: Cita confirmada - ${formattedDate} a las ${formattedTime}`,
+      subject: `Recordatorio: Cita - ${formattedDate} a las ${formattedTime}`,
+      html,
+      appointmentId,
+    });
+  }
+
+  async sendBookingConfirmation(appointmentId: string): Promise<boolean> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { client: true, property: true },
+    });
+
+    if (!appointment || !appointment.client.email) {
+      this.logger.warn(`No client email for appointment ${appointmentId}`);
+      return false;
+    }
+
+    let confirmToken = await this.prisma.confirmationToken.findFirst({
+      where: { appointmentId },
+    });
+
+    if (!confirmToken) {
+      confirmToken = await this.prisma.confirmationToken.create({
+        data: {
+          appointmentId,
+          token: this.generateToken(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    const confirmUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/confirm/${confirmToken.token}`;
+    const appointmentDateTime = new Date(appointment.dateSet);
+    const formattedDate = appointmentDateTime.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const formattedTime = appointmentDateTime.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">✓ Cita Agendada</h1>
+        </div>
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333; margin-top: 0;">¡Su cita ha sido agendada!</h2>
+          <p style="color: #666; font-size: 16px;">Estimado/a <strong>${appointment.client.name} ${appointment.client.lastName1}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">Su cita ha sido programada exitosamente:</p>
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <p style="margin: 10px 0; color: #333;"><strong>📅 Fecha:</strong> ${formattedDate}</p>
+            <p style="margin: 10px 0; color: #333;"><strong>🕐 Hora:</strong> ${formattedTime}</p>
+            <p style="margin: 10px 0; color: #333;"><strong>📍 Dirección:</strong> ${appointment.property.address}</p>
+            <p style="margin: 10px 0; color: #333;"><strong>⏱️ Duración:</strong> ${appointment.duration} minutos</p>
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${confirmUrl}" 
+               style="background: #28a745; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;">
+              ✓ Confirmar Asistencia
+            </a>
+          </div>
+          <p style="color: #666; font-size: 15px; margin: 20px 0;">
+            <strong>Importante:</strong> Recibirá un recordatorio 30 minutos antes de su cita.
+          </p>
+          <p style="color: #999; font-size: 14px; text-align: center;">
+            Si no puede asistir, por favor contactenos con anticipación.<br>
+            Este enlace expira en 24 horas.
+          </p>
+        </div>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: appointment.client.email,
+      subject: `Cita Agendada - ${formattedDate} a las ${formattedTime}`,
       html,
       appointmentId,
     });

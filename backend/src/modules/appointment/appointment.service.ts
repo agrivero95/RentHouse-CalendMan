@@ -19,6 +19,16 @@ export class AppointmentService {
       include: { client: true, property: true },
     });
 
+    await this.prisma.confirmationToken.create({
+      data: {
+        appointmentId: appointment.id,
+        token: this.generateConfirmationToken(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    await this.emailService.sendBookingConfirmation(appointment.id);
+
     await this.notificationService.createNotification({
       appointmentId: appointment.id,
       recipientId: appointment.clientId,
@@ -29,6 +39,15 @@ export class AppointmentService {
     });
 
     return appointment;
+  }
+
+  private generateConfirmationToken(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 64; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 
   async findAll() {
