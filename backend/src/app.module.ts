@@ -8,6 +8,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { PrismaModule } from './config/prisma.module';
+import { WebSocketModule } from './gateway/websocket.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PrismaModule } from './config/prisma.module';
     CalendarModule,
     AuthModule,
     NotificationModule,
+    WebSocketModule,
   ],
 })
 export class AppModule {}

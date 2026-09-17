@@ -4,6 +4,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { EmailService } from '../notification/email/email.service';
 import { NotificationService } from '../notification/notification.service';
+import { WebSocketService, WsEventTypes } from '../../gateway/websocket.service';
 import { toISO, fromISO } from '../../config/date.utils';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AppointmentService {
     private prisma: PrismaService,
     private emailService: EmailService,
     private notificationService: NotificationService,
+    private websocketService: WebSocketService,
   ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
@@ -108,6 +110,14 @@ export class AppointmentService {
       message: `Su cita ha sido agendada para ${new Date(appointment.dateSet).toLocaleDateString()}`,
     });
 
+    this.websocketService.broadcast(WsEventTypes.APPOINTMENT_CREATED, {
+      appointmentId: appointment.id,
+      clientId: appointment.clientId,
+      propertyId: appointment.propertyId,
+      dateSet: appointment.dateSet,
+      timeSet: appointment.timeSet,
+    });
+
     return appointment;
   }
 
@@ -150,11 +160,22 @@ export class AppointmentService {
 
   async update(id: string, updateAppointmentDto: UpdateAppointmentDto) {
     await this.findOne(id);
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: updateAppointmentDto,
       include: { client: true, property: true },
     });
+
+    this.websocketService.broadcast(WsEventTypes.APPOINTMENT_UPDATED, {
+      appointmentId: updated.id,
+      clientId: updated.clientId,
+      propertyId: updated.propertyId,
+      dateSet: updated.dateSet,
+      timeSet: updated.timeSet,
+      status: updated.status,
+    });
+
+    return updated;
   }
 
   async cancelAppointment(id: string) {
@@ -198,6 +219,12 @@ export class AppointmentService {
       });
     }
 
+    this.websocketService.broadcast(WsEventTypes.APPOINTMENT_CANCELLED, {
+      appointmentId: id,
+      clientId: appointment.clientId,
+      propertyId: appointment.propertyId,
+    });
+
     return { cancelled: true, id };
   }
 
@@ -234,6 +261,12 @@ export class AppointmentService {
         data: { type: 'AVAILABLE' },
       });
     }
+
+    this.websocketService.broadcast(WsEventTypes.APPOINTMENT_CANCELLED, {
+      appointmentId: id,
+      clientId: appointment.clientId,
+      propertyId: appointment.propertyId,
+    });
 
     return { deleted: true, id };
   }
@@ -378,6 +411,13 @@ export class AppointmentService {
     ]);
 
     await this.emailService.sendConfirmationEmail(confirmationToken.appointmentId);
+
+    this.websocketService.broadcast(WsEventTypes.APPOINTMENT_CONFIRMED, {
+      appointmentId: confirmationToken.appointmentId,
+      clientId: confirmationToken.appointment.clientId,
+      propertyId: confirmationToken.appointment.propertyId,
+      clientName: confirmationToken.appointment.client.name,
+    });
 
     return {
       success: true,
