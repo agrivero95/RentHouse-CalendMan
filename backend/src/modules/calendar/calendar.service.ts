@@ -65,6 +65,12 @@ export class CalendarService {
   }
 
   async getAvailableSlots(propertyId: string, date: string) {
+    const toISO = (ddmmYYYY: string): string => {
+      const [d, m, y] = ddmmYYYY.split('-').map(Number);
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    };
+    const dateISO = toISO(date);
+
     const slots = await this.prisma.timeSlot.findMany({
       where: {
         propertyId,
@@ -77,8 +83,8 @@ export class CalendarService {
       where: {
         propertyId,
         dateSet: {
-          gte: new Date(date + 'T00:00:00'),
-          lte: new Date(date + 'T23:59:59'),
+          gte: new Date(dateISO + 'T00:00:00'),
+          lte: new Date(dateISO + 'T23:59:59'),
         },
       },
       select: { timeSet: true, duration: true },
