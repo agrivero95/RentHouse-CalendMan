@@ -76,7 +76,7 @@ export default function BookingPage() {
         firstDay,
         lastDay,
       );
-      setAvailableDays(response.data || []);
+      setAvailableDays(Array.isArray(response.data) ? response.data : []);
     } catch {
       setAvailableDays([]);
     } finally {
