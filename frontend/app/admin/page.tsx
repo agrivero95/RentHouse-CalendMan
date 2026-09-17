@@ -19,7 +19,7 @@ export default function AdminPage() {
 
   // Calendar state
   const [selectedProperty, setSelectedProperty] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   const [slotsData, setSlotsData] = useState<any>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockingAll, setBlockingAll] = useState(false);
@@ -325,7 +325,7 @@ export default function AdminPage() {
                                 </svg>
                                 Cliente confirmó
                               </span>
-                            ) : apt.confirmationToken ? (
+                            ) : apt.confirmationTokens?.length ? (
                               <span className="text-xs text-gray-400">Token generado</span>
                             ) : (
                               <span className="text-xs text-gray-400">Pendiente</span>
@@ -563,12 +563,15 @@ function CalendarTab({
   };
 
   const loadMonthData = async (month: number, year: number) => {
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const lastDay = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
     setLoadingMonth(true);
     try {
       const res = await api.get('/calendar/month', {
-        params: { startDate: firstDay.toISOString(), endDate: lastDay.toISOString() },
+        params: {
+          startDate: `${firstDay.getUTCFullYear()}-${String(firstDay.getUTCMonth() + 1).padStart(2, '0')}-${String(firstDay.getUTCDate()).padStart(2, '0')}`,
+          endDate: `${lastDay.getUTCFullYear()}-${String(lastDay.getUTCMonth() + 1).padStart(2, '0')}-${String(lastDay.getUTCDate()).padStart(2, '0')}`,
+        },
       });
       setMonthData(res.data);
     } catch (err) {
@@ -608,7 +611,8 @@ function CalendarTab({
     const today = new Date();
     setCurrentMonth(today.getMonth());
     setCurrentYear(today.getFullYear());
-    setSelectedDate(today.toISOString().split('T')[0]);
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setSelectedDate(todayStr);
   };
 
   const handleDayClick = (day: number) => {
@@ -621,7 +625,7 @@ function CalendarTab({
     if (!selectedProperty || !monthData) return null;
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const daySlots = monthData.slots?.filter((s: any) => {
-      const slotDate = s.date.startsWith('20') ? s.date.split('T')[0] : s.date;
+      const slotDate = (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
       return slotDate === dateStr && s.propertyId === selectedProperty;
     });
     if (!daySlots || daySlots.length === 0) return null;
@@ -637,7 +641,9 @@ function CalendarTab({
     if (!monthData) return [];
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return monthData.appointments?.filter((apt: any) => {
-      return apt.dateSet.split('T')[0] === dateStr;
+      const aptDate = new Date(apt.dateSet);
+      const aptDateStr = `${aptDate.getFullYear()}-${String(aptDate.getMonth() + 1).padStart(2, '0')}-${String(aptDate.getDate()).padStart(2, '0')}`;
+      return aptDateStr === dateStr;
     }) || [];
   };
 
@@ -740,12 +746,14 @@ function CalendarTab({
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
 
               const daySlots = monthData?.slots?.filter((s: any) => {
-                const slotDate = typeof s.date === 'string' ? s.date.split('T')[0] : (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-                return slotDate === dateStr;
+                const slotDate = (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+                return slotDate === dateStr && s.propertyId === selectedProperty;
               }) || [];
 
               const dayAppointments = monthData?.appointments?.filter((apt: any) => {
-                return apt.dateSet.split('T')[0] === dateStr;
+                const aptDate = new Date(apt.dateSet);
+                const aptDateStr = `${aptDate.getFullYear()}-${String(aptDate.getMonth() + 1).padStart(2, '0')}-${String(aptDate.getDate()).padStart(2, '0')}`;
+                return aptDateStr === dateStr;
               }) || [];
 
               const propertyBreakdown: Record<string, Record<string, number>> = {};
@@ -874,12 +882,12 @@ function CalendarTab({
                   const propSlots = monthData.slots.filter((s: any) => s.propertyId === prop.id);
                   if (propSlots.length === 0) return null;
 
-                   const monthSlotsByDate: Record<string, any[]> = {};
-                   propSlots.forEach((slot: any) => {
-                     const slotDate = typeof slot.date === 'string' ? slot.date.split('T')[0] : (() => { const d = new Date(slot.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-                     if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
-                     monthSlotsByDate[slotDate].push(slot);
-                   });
+                    const monthSlotsByDate: Record<string, any[]> = {};
+                    propSlots.forEach((slot: any) => {
+                      const slotDate = (() => { const d = new Date(slot.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+                      if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
+                      monthSlotsByDate[slotDate].push(slot);
+                    });
 
                   return (
                     <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-4">

@@ -60,10 +60,14 @@ export class AppointmentController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const utcStart = new Date(Date.UTC(sy, sm - 1, sd));
+    const utcEnd = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
     return this.appointmentService.findByPropertyId(
       propertyId,
-      new Date(startDate),
-      new Date(endDate),
+      utcStart,
+      utcEnd,
     );
   }
 
@@ -73,10 +77,14 @@ export class AppointmentController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const utcStart = new Date(Date.UTC(sy, sm - 1, sd));
+    const utcEnd = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
     return this.appointmentService.findByClientId(
       clientId,
-      new Date(startDate),
-      new Date(endDate),
+      utcStart,
+      utcEnd,
     );
   }
 
@@ -86,8 +94,8 @@ export class AppointmentController {
     @Query('date') date: string,
   ) {
     const [y, m, d] = date.split('-').map(Number);
-    const localDate = new Date(y, m - 1, d);
-    return this.appointmentService.findAvailableSlots(propertyId, localDate);
+    const utcDate = new Date(Date.UTC(y, m - 1, d));
+    return this.appointmentService.findAvailableSlots(propertyId, utcDate);
   }
 
   @Post('confirm/:token')

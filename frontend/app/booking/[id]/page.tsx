@@ -57,8 +57,8 @@ export default function BookingPage() {
     if (!propertyId) return;
     setMonthLoading(true);
     try {
-      const firstDay = new Date(currentYear, currentMonth, 1);
-      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const firstDay = new Date(Date.UTC(currentYear, currentMonth, 1));
+      const lastDay = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999));
       const response = await calendarApi.getAvailableDays(
         propertyId,
         firstDay.toISOString().split('T')[0],
@@ -115,14 +115,19 @@ export default function BookingPage() {
   };
 
   const isDateAvailable = (day: number) => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return availableDays.some(
-      (d: any) => d.day === day && d.month === currentMonth && d.year === currentYear && d.hasAvailableSlots
+      (d: any) => {
+        const slotDate = new Date(Date.UTC(d.year, d.month, d.day));
+        const slotDateStr = `${slotDate.getUTCFullYear()}-${String(slotDate.getUTCMonth() + 1).padStart(2, '0')}-${String(slotDate.getUTCDate()).padStart(2, '0')}`;
+        return slotDateStr === dateStr && d.hasAvailableSlots;
+      }
     );
   };
 
   const isSlotAvailable = (slotStart: string) => {
     if (!selectedDate) return false;
-    const slotDate = new Date(slotStart).toISOString().split('T')[0];
+    const slotDate = (() => { const d = new Date(slotStart); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selected = new Date(selectedDate);

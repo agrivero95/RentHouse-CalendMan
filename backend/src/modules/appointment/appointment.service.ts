@@ -15,9 +15,9 @@ export class AppointmentService {
 
   async create(createAppointmentDto: CreateAppointmentDto) {
     const [y, m, d] = createAppointmentDto.dateSet.split('-').map(Number);
-    const dateSet = new Date(y, m - 1, d, 0, 0, 0, 0);
-    const dateStartOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
-    const dateEndOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+    const dateSet = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const dateStartOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const dateEndOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
@@ -137,7 +137,7 @@ export class AppointmentService {
         client: true,
         property: true,
         notifications: { orderBy: { createdAt: 'desc' } },
-        confirmationToken: true,
+        confirmationTokens: true,
       },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -160,10 +160,8 @@ export class AppointmentService {
       throw new BadRequestException('La cita ya está cancelada');
     }
 
-    const dateStartOfDay = new Date(appointment.dateSet);
-    dateStartOfDay.setHours(0, 0, 0, 0);
-    const dateEndOfDay = new Date(appointment.dateSet);
-    dateEndOfDay.setHours(23, 59, 59, 999);
+    const dateStartOfDay = new Date(Date.UTC(appointment.dateSet.getUTCFullYear(), appointment.dateSet.getUTCMonth(), appointment.dateSet.getUTCDate(), 0, 0, 0, 0));
+    const dateEndOfDay = new Date(Date.UTC(appointment.dateSet.getUTCFullYear(), appointment.dateSet.getUTCMonth(), appointment.dateSet.getUTCDate(), 23, 59, 59, 999));
 
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
@@ -202,10 +200,8 @@ export class AppointmentService {
   async remove(id: string) {
     const appointment = await this.findOne(id);
 
-    const dateStartOfDay = new Date(appointment.dateSet);
-    dateStartOfDay.setHours(0, 0, 0, 0);
-    const dateEndOfDay = new Date(appointment.dateSet);
-    dateEndOfDay.setHours(23, 59, 59, 999);
+    const dateStartOfDay = new Date(Date.UTC(appointment.dateSet.getUTCFullYear(), appointment.dateSet.getUTCMonth(), appointment.dateSet.getUTCDate(), 0, 0, 0, 0));
+    const dateEndOfDay = new Date(Date.UTC(appointment.dateSet.getUTCFullYear(), appointment.dateSet.getUTCMonth(), appointment.dateSet.getUTCDate(), 23, 59, 59, 999));
 
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
@@ -261,11 +257,11 @@ export class AppointmentService {
   }
 
   async findAvailableSlots(propertyId: string, date: Date) {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
-    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
 
     const timeSlots = await this.prisma.timeSlot.findMany({
       where: {

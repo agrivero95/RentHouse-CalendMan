@@ -42,11 +42,11 @@ export class CalendarService {
   }
 
   async blockPropertySlots(propertyId: string, date: Date, type: 'RESERVED' | 'BLOCKED') {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
-    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
 
     return this.prisma.timeSlot.upsert({
       where: {
@@ -68,11 +68,11 @@ export class CalendarService {
   }
 
   async getAvailableSlots(propertyId: string, date: Date) {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
-    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
 
     const slots = await this.prisma.timeSlot.findMany({
       where: {
@@ -103,8 +103,8 @@ export class CalendarService {
   }
 
   async getMonthSlots(startDate: Date, endDate: Date) {
-    const startLocal = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-    const endLocal = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+    const startLocal = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+    const endLocal = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate(), 23, 59, 59, 999));
 
     const slots = await this.prisma.timeSlot.findMany({
       where: {
@@ -142,11 +142,10 @@ export class CalendarService {
         },
         type: 'AVAILABLE',
       },
-      select: { date: true },
-      distinct: ['date'],
+      orderBy: { date: 'asc' },
     });
 
-    const appointmentDates = await this.prisma.appointment.findMany({
+    const appointmentSlots = await this.prisma.appointment.findMany({
       where: {
         propertyId,
         dateSet: {
@@ -157,36 +156,64 @@ export class CalendarService {
           not: 'CANCELLED',
         },
       },
-      select: { dateSet: true },
-      distinct: ['dateSet'],
+      select: { timeSet: true, duration: true },
     });
 
-    const bookedDates = new Set(appointmentDates.map((apt) => {
-      const d = new Date(apt.dateSet.getFullYear(), apt.dateSet.getMonth(), apt.dateSet.getDate());
-      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const occupiedSlots = new Map<string, number>();
+    for (const apt of appointmentSlots) {
+      const t = new Date(apt.timeSet);
+      const key = `${t.getUTCFullYear()}-${t.getUTCMonth()}-${t.getUTCDate()}`;
+      const end = new Date(t.getTime() + apt.duration * 60000);
+      occupiedSlots.set(key, (occupiedSlots.get(key) || 0) + 1);
+    }
+
+    const dateMap = new Map<string, any>();
+    for (const slot of slots) {
+      const d = new Date(Date.UTC(slot.date.getUTCFullYear(), slot.date.getUTCMonth(), slot.date.getUTCDate()));
+      const dateKey = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, {
+          date: d,
+          day: d.getUTCDate(),
+          month: d.getUTCMonth(),
+          year: d.getUTCFullYear(),
+          totalSlots: 0,
+          bookedSlots: 0,
+        });
+      }
+
+      dateMap.get(dateKey).totalSlots++;
+    }
+
+    for (const [dateKey, count] of occupiedSlots) {
+      if (dateMap.has(dateKey)) {
+        dateMap.get(dateKey).bookedSlots = count;
+      }
+    }
+
+    const availableDays = Array.from(dateMap.values()).map((day: any) => ({
+      ...day,
+      hasAvailableSlots: day.totalSlots > day.bookedSlots,
     }));
 
-    const availableDays = slots
-      .map((slot) => {
-        const d = new Date(slot.date.getFullYear(), slot.date.getMonth(), slot.date.getDate());
-        return {
-          date: slot.date,
-          day: d.getDate(),
-          month: d.getMonth(),
-          year: d.getFullYear(),
-          hasAvailableSlots: !bookedDates.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`),
-        };
-      });
+    availableDays.sort((a, b) => {
+      const dateA = new Date(Date.UTC(a.year, a.month, a.day));
+      const dateB = new Date(Date.UTC(b.year, b.month, b.day));
+      return dateA.getTime() - dateB.getTime();
+    });
 
     return availableDays;
   }
 
   async createCustomSlots(propertyId: string, date: string, startTime: string, endTime: string, duration: number, type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') {
     const [year, month, day] = date.split('-').map(Number);
-    const slotDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const slotDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 
-    const start = new Date(`${date}T${startTime}`);
-    const end = new Date(`${date}T${endTime}`);
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    const start = new Date(Date.UTC(year, month - 1, day, sh, sm, 0, 0));
+    const end = new Date(Date.UTC(year, month - 1, day, eh, em, 0, 0));
 
     const createdSlots: any[] = [];
     const durationMs = duration * 60 * 1000;

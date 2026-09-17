@@ -48,7 +48,7 @@ export interface Appointment {
   client?: Client;
   property?: Property;
   notifications?: Notification[];
-  confirmationToken?: ConfirmationToken;
+  confirmationTokens?: ConfirmationToken[];
 }
 
 export interface Notification {
