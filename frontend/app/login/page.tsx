@@ -44,6 +44,7 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               className="input-field"
               required
+              suppressHydrationWarning
             />
           </div>
 
@@ -55,6 +56,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="input-field"
               required
+              suppressHydrationWarning
             />
           </div>
 
