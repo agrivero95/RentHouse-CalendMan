@@ -85,7 +85,7 @@ export class AppointmentService {
       return created;
     });
 
-    await this.prisma.confirmationTokens.create({
+    await this.prisma.confirmationToken.create({
       data: {
         appointmentId: appointment.id,
         token: this.generateConfirmationToken(),
@@ -137,7 +137,7 @@ export class AppointmentService {
         client: true,
         property: true,
         notifications: { orderBy: { createdAt: 'desc' } },
-        confirmationTokens: true,
+        confirmationToken: true,
       },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -317,7 +317,7 @@ export class AppointmentService {
   }
 
   async confirmAppointment(token: string) {
-    const confirmationToken = await this.prisma.confirmationTokens.findUnique({
+    const confirmationToken = await this.prisma.confirmationToken.findUnique({
       where: { token },
       include: { appointment: { include: { client: true, property: true } } },
     });
@@ -339,7 +339,7 @@ export class AppointmentService {
         where: { id: confirmationToken.appointmentId },
         data: { status: 'CONFIRMED' },
       }),
-      this.prisma.confirmationTokens.update({
+      this.prisma.confirmationToken.update({
         where: { id: confirmationToken.id },
         data: { usedAt: new Date() },
       }),

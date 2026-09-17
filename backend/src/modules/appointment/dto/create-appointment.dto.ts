@@ -10,7 +10,7 @@ export class CreateAppointmentDto {
   propertyId!: string;
 
   @IsNotEmpty()
-  dateSet!: Date;
+  dateSet!: string;
 
   @IsNotEmpty()
   timeSet!: Date;
