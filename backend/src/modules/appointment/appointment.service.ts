@@ -201,16 +201,17 @@ export class AppointmentService {
 
   async remove(id: string) {
     const appointment = await this.findOne(id);
-    await this.prisma.appointment.delete({ where: { id } });
-
+    
     await this.notificationService.createNotification({
       appointmentId: id,
       recipientId: appointment.clientId,
       recipientType: 'CLIENT',
-      type: 'APPOINTMENT_CANCELLED',
-      title: 'Cita Cancelada',
-      message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido cancelada`,
+      type: 'SYSTEM',
+      title: 'Cita Eliminada',
+      message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido eliminada`,
     });
+
+    await this.prisma.appointment.delete({ where: { id } });
 
     return { deleted: true, id };
   }
