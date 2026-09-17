@@ -15,7 +15,14 @@ export class AppointmentService {
 
   async create(createAppointmentDto: CreateAppointmentDto) {
     const appointment = await this.prisma.appointment.create({
-      data: createAppointmentDto,
+      data: {
+        clientId: createAppointmentDto.clientId,
+        propertyId: createAppointmentDto.propertyId,
+        dateSet: new Date(createAppointmentDto.dateSet),
+        timeSet: new Date(createAppointmentDto.timeSet),
+        duration: createAppointmentDto.duration || 15,
+        notes: createAppointmentDto.notes,
+      },
       include: { client: true, property: true },
     });
 
