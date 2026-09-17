@@ -12,39 +12,44 @@ export function useWebSocket(token?: string | null) {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
-    const ws = new WebSocket(url);
+    try {
+      const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
+      const ws = new WebSocket(url);
 
-    ws.onopen = () => {
-      setIsConnected(true);
-    };
+      ws.onopen = () => {
+        setIsConnected(true);
+      };
 
-    ws.onclose = () => {
-      setIsConnected(false);
-      reconnectTimeoutRef.current = setTimeout(connect, 3000);
-    };
+      ws.onclose = () => {
+        setIsConnected(false);
+        reconnectTimeoutRef.current = setTimeout(connect, 5000);
+      };
 
-    ws.onerror = () => {
-      ws.close();
-    };
+      ws.onerror = () => {
+        ws.close();
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        const { event: eventType, data } = message;
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          const { event: eventType, data } = message;
 
-        const callbacks = callbacksRef.current.get(eventType) || new Set();
-        callbacks.forEach((cb) => cb(data));
+          const callbacks = callbacksRef.current.get(eventType) || new Set();
+          callbacks.forEach((cb) => cb(data));
 
-        if (eventType.startsWith('appointment:') || eventType === 'admin:notification') {
-          setNotifications((prev) => [{ id: `${eventType}_${Date.now()}`, event: eventType, data, timestamp: new Date().toISOString() }, ...prev].slice(0, 50));
+          if (eventType.startsWith('appointment:') || eventType === 'admin:notification') {
+            setNotifications((prev) => [{ id: `${eventType}_${Date.now()}`, event: eventType, data, timestamp: new Date().toISOString() }, ...prev].slice(0, 50));
+          }
+        } catch {
+          // ignore parse errors
         }
-      } catch {
-        // ignore parse errors
-      }
-    };
+      };
 
-    wsRef.current = ws;
+      wsRef.current = ws;
+    } catch (err) {
+      console.error('WebSocket connection failed:', err);
+      reconnectTimeoutRef.current = setTimeout(connect, 5000);
+    }
   }, [token]);
 
   const on = useCallback((event: string, callback: EventCallback) => {

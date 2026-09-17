@@ -27,7 +27,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications(response.data);
       setUnreadCount(response.data.filter((n: any) => n.status === 'PENDING' || n.status === 'SENT').length);
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
+      // Silently ignore network errors
     }
   }, []);
 
