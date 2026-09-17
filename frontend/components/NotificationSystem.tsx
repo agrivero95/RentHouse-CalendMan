@@ -23,10 +23,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!token) return;
 
     try {
-      const response = await notificationsApi.getUnread('admin', 'ADMIN');
-      const allResponse = await notificationsApi.getAll('admin', 'ADMIN');
-      setNotifications(allResponse.data);
-      setUnreadCount(response.data.length);
+      const response = await notificationsApi.getAdmin();
+      setNotifications(response.data);
+      setUnreadCount(response.data.filter((n: any) => n.status === 'PENDING' || n.status === 'SENT').length);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }

@@ -12,4 +12,5 @@ backend/node_modules/
 backend/.env
 backend/uploads/
 backend/tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
 backend/src/prisma/migrations/
