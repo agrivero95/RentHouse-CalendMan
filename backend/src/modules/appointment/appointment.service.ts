@@ -153,6 +153,52 @@ export class AppointmentService {
     });
   }
 
+  async cancelAppointment(id: string) {
+    const appointment = await this.findOne(id);
+
+    if (appointment.status === 'CANCELLED') {
+      throw new BadRequestException('La cita ya está cancelada');
+    }
+
+    const dateStartOfDay = new Date(appointment.dateSet);
+    dateStartOfDay.setHours(0, 0, 0, 0);
+    const dateEndOfDay = new Date(appointment.dateSet);
+    dateEndOfDay.setHours(23, 59, 59, 999);
+
+    const timeSlot = await this.prisma.timeSlot.findFirst({
+      where: {
+        propertyId: appointment.propertyId,
+        date: { gte: dateStartOfDay, lte: dateEndOfDay },
+        startTime: appointment.timeSet,
+      },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.appointment.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+      }),
+    ]);
+
+    await this.notificationService.createNotification({
+      appointmentId: id,
+      recipientId: appointment.clientId,
+      recipientType: 'CLIENT',
+      type: 'APPOINTMENT_CANCELLED',
+      title: 'Cita Cancelada',
+      message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido cancelada`,
+    });
+
+    if (timeSlot) {
+      await this.prisma.timeSlot.update({
+        where: { id: timeSlot.id },
+        data: { type: 'AVAILABLE' },
+      });
+    }
+
+    return { cancelled: true, id };
+  }
+
   async remove(id: string) {
     const appointment = await this.findOne(id);
     await this.prisma.appointment.delete({ where: { id } });

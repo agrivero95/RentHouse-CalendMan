@@ -137,6 +137,28 @@ export default function AdminPage() {
     }
   };
 
+  const cancelAppointment = async (id: string) => {
+    if (!confirm('¿Cancelar esta cita? El slot se liberará y el cliente será notificado.')) return;
+    try {
+      await api.post(`/appointments/${id}/cancel`);
+      setAppointments((prev: any[]) => prev.map((apt) => apt.id === id ? { ...apt, status: 'CANCELLED' } : apt));
+    } catch (err: any) {
+      console.error('Error cancelling appointment:', err);
+      alert(err.response?.data?.message || 'Error al cancelar la cita');
+    }
+  };
+
+  const deleteAppointment = async (id: string) => {
+    if (!confirm('¿Eliminar permanentemente esta cita? Esta acción no se puede deshacer.')) return;
+    try {
+      await api.delete(`/appointments/${id}`);
+      setAppointments((prev: any[]) => prev.filter((apt) => apt.id !== id));
+    } catch (err: any) {
+      console.error('Error deleting appointment:', err);
+      alert(err.response?.data?.message || 'Error al eliminar la cita');
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   const navItems = [
@@ -270,6 +292,7 @@ export default function AdminPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Property</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confirmation</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -307,6 +330,24 @@ export default function AdminPage() {
                             ) : (
                               <span className="text-xs text-gray-400">Pendiente</span>
                             )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {apt.status !== 'CANCELLED' && (
+                                <button
+                                  onClick={() => cancelAppointment(apt.id)}
+                                  className="px-3 py-1 text-xs rounded-lg bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteAppointment(apt.id)}
+                                className="px-3 py-1 text-xs rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium transition-colors"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

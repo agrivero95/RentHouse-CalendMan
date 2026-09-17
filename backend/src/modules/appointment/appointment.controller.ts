@@ -48,6 +48,12 @@ export class AppointmentController {
     return this.appointmentService.remove(id);
   }
 
+  @Post(':id/cancel')
+  @UseGuards(AdminGuard)
+  cancelAppointment(@Param('id') id: string) {
+    return this.appointmentService.cancelAppointment(id);
+  }
+
   @Get('property/:propertyId')
   findByProperty(
     @Param('propertyId') propertyId: string,
