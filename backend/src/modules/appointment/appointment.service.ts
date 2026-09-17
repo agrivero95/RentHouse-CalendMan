@@ -4,6 +4,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { EmailService } from '../notification/email/email.service';
 import { NotificationService } from '../notification/notification.service';
+import { toISO, fromISO } from '../../config/date.utils';
 
 @Injectable()
 export class AppointmentService {
@@ -14,8 +15,14 @@ export class AppointmentService {
   ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
-    const dateStr = createAppointmentDto.dateSet;
+    let dateStr = createAppointmentDto.dateSet;
     const timeSet = createAppointmentDto.timeSet;
+
+    if (dateStr.length === 10 && dateStr[4] === '-' && dateStr[7] === '-') {
+      dateStr = fromISO(dateStr);
+    }
+
+    const dateISO = toISO(dateStr);
 
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
@@ -36,7 +43,7 @@ export class AppointmentService {
     const overlappingAppointment = await this.prisma.appointment.findFirst({
       where: {
         propertyId: createAppointmentDto.propertyId,
-        dateSet: dateStr,
+        dateSet: new Date(dateISO + 'T00:00:00'),
         status: { not: 'CANCELLED' },
         timeSet: timeSet,
       },
@@ -50,7 +57,7 @@ export class AppointmentService {
       where: {
         clientId: createAppointmentDto.clientId,
         propertyId: createAppointmentDto.propertyId,
-        dateSet: dateStr,
+        dateSet: new Date(dateISO + 'T00:00:00'),
         status: { not: 'CANCELLED' },
       },
     });
@@ -66,7 +73,7 @@ export class AppointmentService {
         data: {
           clientId: createAppointmentDto.clientId,
           propertyId: createAppointmentDto.propertyId,
-          dateSet: new Date(dateStr + 'T00:00:00'),
+          dateSet: new Date(dateISO + 'T00:00:00'),
           timeSet: timeSet,
           duration,
           notes: createAppointmentDto.notes,
@@ -157,10 +164,13 @@ export class AppointmentService {
       throw new BadRequestException('La cita ya está cancelada');
     }
 
+    const aptDate = (appointment.dateSet instanceof Date ? appointment.dateSet : new Date(appointment.dateSet)).toISOString().split('T')[0];
+    const dateDB = fromISO(aptDate);
+
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
         propertyId: appointment.propertyId,
-        date: appointment.dateSet.toISOString().split('T')[0],
+        date: dateDB,
         startTime: appointment.timeSet,
       },
     });
@@ -194,10 +204,13 @@ export class AppointmentService {
   async remove(id: string) {
     const appointment = await this.findOne(id);
 
+    const aptDate = (appointment.dateSet instanceof Date ? appointment.dateSet : new Date(appointment.dateSet)).toISOString().split('T')[0];
+    const dateDB = fromISO(aptDate);
+
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
         propertyId: appointment.propertyId,
-        date: appointment.dateSet.toISOString().split('T')[0],
+        date: dateDB,
         startTime: appointment.timeSet,
       },
     });
@@ -226,16 +239,12 @@ export class AppointmentService {
   }
 
   async findByPropertyId(propertyId: string, startDate: string, endDate: string) {
-    const toISO = (ddmmYYYY: string): string => {
-      const [d, m, y] = ddmmYYYY.split('-').map(Number);
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
     return this.prisma.appointment.findMany({
       where: {
         propertyId,
         dateSet: {
-          gte: new Date(toISO(startDate) + 'T00:00:00'),
-          lte: new Date(toISO(endDate) + 'T23:59:59'),
+          gte: new Date(startDate + 'T00:00:00'),
+          lte: new Date(endDate + 'T23:59:59'),
         },
       },
       include: { client: true },
@@ -244,16 +253,12 @@ export class AppointmentService {
   }
 
   async findByClientId(clientId: string, startDate: string, endDate: string) {
-    const toISO = (ddmmYYYY: string): string => {
-      const [d, m, y] = ddmmYYYY.split('-').map(Number);
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
     return this.prisma.appointment.findMany({
       where: {
         clientId,
         dateSet: {
-          gte: new Date(toISO(startDate) + 'T00:00:00'),
-          lte: new Date(toISO(endDate) + 'T23:59:59'),
+          gte: new Date(startDate + 'T00:00:00'),
+          lte: new Date(endDate + 'T23:59:59'),
         },
       },
       include: { property: true },
@@ -270,12 +275,13 @@ export class AppointmentService {
       orderBy: { startTime: 'asc' },
     });
 
+    const dateISO = toISO(date);
     const appointments = await this.prisma.appointment.findMany({
       where: {
         propertyId,
         dateSet: {
-          gte: new Date(date + 'T00:00:00'),
-          lte: new Date(date + 'T23:59:59'),
+          gte: new Date(dateISO + 'T00:00:00'),
+          lte: new Date(dateISO + 'T23:59:59'),
         },
       },
       select: { timeSet: true, duration: true, status: true },

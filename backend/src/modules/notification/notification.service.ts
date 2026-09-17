@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma.service';
 import { EmailService } from './email/email.service';
+import { fromISO } from '../../config/date.utils';
 
 export interface NotificationData {
   appointmentId: string;

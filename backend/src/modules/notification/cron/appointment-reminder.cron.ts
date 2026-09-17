@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@/config/prisma.service';
 import { EmailService } from '../email/email.service';
+import { fromISO } from '@/config/date.utils';
 
 @Injectable()
 export class AppointmentReminderCron implements OnModuleInit, OnModuleDestroy {

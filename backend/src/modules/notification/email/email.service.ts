@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '@/config/prisma.service';
+import { fromISO } from '@/config/date.utils';
 
 interface EmailData {
   to: string;

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma.service';
 import { CreateTimeSlotDto } from './dto/create-time-slot.dto';
 import { UpdateTimeSlotDto } from './dto/update-time-slot.dto';
+import { toISO, fromISO } from '../../config/date.utils';
 
 @Injectable()
 export class CalendarService {
@@ -15,16 +16,15 @@ export class CalendarService {
   }
 
   async findSlotsByProperty(propertyId: string, startDate: string, endDate: string) {
-    const toISO = (ddmmYYYY: string): string => {
-      const [d, m, y] = ddmmYYYY.split('-').map(Number);
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
+    // startDate/endDate vienen del frontend como YYYY-MM-DD
+    const startDB = fromISO(startDate);
+    const endDB = fromISO(endDate);
     return this.prisma.timeSlot.findMany({
       where: {
         propertyId,
         date: {
-          gte: toISO(startDate),
-          lte: toISO(endDate),
+          gte: startDB,
+          lte: endDB,
         },
       },
       orderBy: { date: 'asc' },
@@ -65,10 +65,6 @@ export class CalendarService {
   }
 
   async getAvailableSlots(propertyId: string, date: string) {
-    const toISO = (ddmmYYYY: string): string => {
-      const [d, m, y] = ddmmYYYY.split('-').map(Number);
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
     const dateISO = toISO(date);
 
     const slots = await this.prisma.timeSlot.findMany({
@@ -97,27 +93,11 @@ export class CalendarService {
   }
 
   async getMonthSlots(startDate: string, endDate: string) {
-    const toISO = (ddmmYYYY: string): string => {
-      const [d, m, y] = ddmmYYYY.split('-').map(Number);
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
-    const fromISO = (yyyyMMDD: string): string => {
-      const [y, m, d] = yyyyMMDD.split('-').map(Number);
-      return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
-    };
-
-    let startDB: string, endDB: string, startISO: string, endISO: string;
-    if (startDate.includes('/') || startDate.length === 8) {
-      startDB = startDate;
-      endDB = endDate;
-      startISO = toISO(startDate);
-      endISO = toISO(endDate);
-    } else {
-      startISO = startDate;
-      endISO = endDate;
-      startDB = fromISO(startDate);
-      endDB = fromISO(endDate);
-    }
+    // startDate/endDate vienen del frontend como YYYY-MM-DD
+    const startDB = fromISO(startDate);
+    const endDB = fromISO(endDate);
+    const startISO = startDate;
+    const endISO = endDate;
 
     const allSlots = await this.prisma.timeSlot.findMany({ orderBy: { date: 'asc' } });
     const slots = allSlots.filter((s: any) => s.date >= startDB && s.date <= endDB);
@@ -139,21 +119,13 @@ export class CalendarService {
   }
 
   async getAvailableDays(propertyId: string, startDate: string, endDate: string) {
-    const toISO = (input: string): string => {
-      const parts = input.split('-').map(Number);
-      const [a, b, c] = parts;
-      if (c.toString().length === 4) return input;
-      return `${c}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
-    };
-    const fromISO = (yyyyMMDD: string): string => {
-      const [y, m, d] = yyyyMMDD.split('-').map(Number);
-      return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
-    };
+    // startDate/endDate come del frontend como YYYY-MM-DD (ISO)
+    const startISODate = new Date(startDate + 'T00:00:00');
+    const endISODate = new Date(endDate + 'T23:59:59');
 
-    const startISO = toISO(startDate);
-    const endISO = toISO(endDate);
-    const startDB = fromISO(startISO);
-    const endDB = fromISO(endISO);
+    if (isNaN(startISODate.getTime()) || isNaN(endISODate.getTime())) {
+      return [];
+    }
 
     const allSlots = await this.prisma.timeSlot.findMany({
       where: {
@@ -162,14 +134,6 @@ export class CalendarService {
       },
       orderBy: { date: 'asc' },
     });
-    const slots = allSlots.filter((s: any) => s.date >= startDB && s.date <= endDB);
-
-    const startISODate = new Date(startISO + 'T00:00:00');
-    const endISODate = new Date(endISO + 'T23:59:59');
-
-    if (isNaN(startISODate.getTime()) || isNaN(endISODate.getTime())) {
-      return { availableDays: [], monthData: {} };
-    }
 
     const appointmentSlots = await this.prisma.appointment.findMany({
       where: {
@@ -185,47 +149,57 @@ export class CalendarService {
       select: { timeSet: true, duration: true, dateSet: true },
     });
 
+    const dbToISO = toISO;
+
     const dateMap = new Map<string, any>();
-    for (const slot of slots) {
-      if (!dateMap.has(slot.date)) {
-        dateMap.set(slot.date, {
-          date: slot.date,
-          day: parseInt(slot.date.split('-')[0]),
-          month: parseInt(slot.date.split('-')[1]),
-          year: parseInt(slot.date.split('-')[2]),
+    for (const slot of allSlots) {
+      const isoDate = dbToISO(slot.date);
+      const slotDate = new Date(isoDate + 'T00:00:00');
+      if (slotDate < startISODate || slotDate > endISODate) {
+        continue;
+      }
+      if (!dateMap.has(isoDate)) {
+        const slotParts = slot.date.split('-').map(Number);
+        const [d, m, y] = slotParts;
+        dateMap.set(isoDate, {
+          isoDate,
+          day: d,
+          month: m,
+          year: y,
           totalSlots: 0,
           bookedSlots: 0,
         });
       }
-      dateMap.get(slot.date).totalSlots++;
+      dateMap.get(isoDate).totalSlots++;
     }
 
-    const occupiedByDate = new Map<string, number>();
+    const occupiedByISO = new Map<string, number>();
     for (const apt of appointmentSlots) {
-      const aptDate = apt.dateSet.toISOString().split('T')[0];
-      occupiedByDate.set(aptDate, (occupiedByDate.get(aptDate) || 0) + 1);
+      const aptISO = (apt.dateSet instanceof Date ? apt.dateSet : new Date(apt.dateSet)).toISOString().split('T')[0];
+      occupiedByISO.set(aptISO, (occupiedByISO.get(aptISO) || 0) + 1);
     }
 
-    for (const [dateKey, count] of occupiedByDate) {
-      if (dateMap.has(dateKey)) {
-        dateMap.get(dateKey).bookedSlots = count;
+    for (const [isoDate, count] of occupiedByISO) {
+      if (dateMap.has(isoDate)) {
+        dateMap.get(isoDate).bookedSlots = count;
       }
     }
 
     const availableDays = Array.from(dateMap.values()).map((day: any) => ({
       ...day,
-      dateStr: day.date,
+      dateStr: day.isoDate,
       hasAvailableSlots: day.totalSlots > day.bookedSlots,
     }));
 
-    availableDays.sort((a, b) => a.date.localeCompare(b.date));
+    availableDays.sort((a, b) => a.isoDate.localeCompare(b.isoDate));
 
     return availableDays;
   }
 
   async createCustomSlots(propertyId: string, date: string, startTime: string, endTime: string, duration: number, type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') {
-    const [day, month, year] = date.split('-').map(Number);
-    const dateStr = `${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
+    const parts = date.split('-').map(Number);
+    const [d, m, y] = parts;
+    const dateStr = `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
 
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);

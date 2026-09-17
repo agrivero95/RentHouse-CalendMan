@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { toBackend, toFrontend, todayDDMMYYYY } from '@/lib/date';
 import { useNotifications, NotificationBell } from '@/components/NotificationSystem';
 
 export default function AdminPage() {
@@ -23,12 +24,6 @@ export default function AdminPage() {
   const [slotsData, setSlotsData] = useState<any>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockingAll, setBlockingAll] = useState(false);
-
-  // Helper: convert YYYY-MM-DD (frontend) to DD-MM-YYYY (backend)
-  const toBackendDate = (dateStr: string): string => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
-  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -64,7 +59,7 @@ export default function AdminPage() {
     setLoadingSlots(true);
     try {
       const response = await api.get(`/calendar/available/${selectedProperty}`, {
-        params: { date: toBackendDate(selectedDate) },
+        params: { date: toBackend(selectedDate) },
       });
       setSlotsData(response.data);
     } catch (error) {
@@ -79,7 +74,7 @@ export default function AdminPage() {
     setBlockingAll(true);
     try {
       await api.post(`/calendar/block/${selectedProperty}`, null, {
-        params: { date: toBackendDate(selectedDate), type },
+        params: { date: toBackend(selectedDate), type },
       });
       await fetchSlots();
     } catch (error) {
@@ -119,7 +114,7 @@ export default function AdminPage() {
     try {
       await api.post('/calendar/custom-slots', {
         propertyId: selectedProperty,
-        date: toBackendDate(selectedDate),
+        date: toBackend(selectedDate),
         ...customSlotsForm,
       });
       await fetchSlots();
@@ -504,10 +499,6 @@ export default function AdminPage() {
               blockingAll={blockingAll}
               cycleSlotType={cycleSlotType}
               deleteSlot={deleteSlot}
-              toBackendDate={(dateStr: string) => {
-                const [y, m, d] = dateStr.split('-').map(Number);
-                return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
-              }}
             />
           )}
         </div>
@@ -559,18 +550,6 @@ function CalendarTab({
   });
   const [creatingSlots, setCreatingSlots] = useState(false);
 
-  // Helper: convert YYYY-MM-DD (frontend) to DD-MM-YYYY (backend)
-  const toBackendDate = (dateStr: string): string => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
-  };
-
-  // Helper: convert DD-MM-YYYY (backend) to YYYY-MM-DD (frontend)
-  const toFrontendDate = (backendDate: string): string => {
-    const [d, m, y] = backendDate.split('-').map(Number);
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  };
-
   // Helper: parse HH:mm string to hours and minutes
   const parseTime = (timeStr: string): { hours: number; minutes: number } => {
     const [h, m] = timeStr.split(':').map(Number);
@@ -593,12 +572,14 @@ function CalendarTab({
   const loadMonthData = async (month: number, year: number) => {
     const firstDay = new Date(Date.UTC(year, month, 1));
     const lastDay = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+    const startDateISO = `${firstDay.getUTCFullYear()}-${String(firstDay.getUTCMonth() + 1).padStart(2, '0')}-${String(firstDay.getUTCDate()).padStart(2, '0')}`;
+    const endDateISO = `${lastDay.getUTCFullYear()}-${String(lastDay.getUTCMonth() + 1).padStart(2, '0')}-${String(lastDay.getUTCDate()).padStart(2, '0')}`;
     setLoadingMonth(true);
     try {
       const res = await api.get('/calendar/month', {
         params: {
-          startDate: `${firstDay.getUTCFullYear()}-${String(firstDay.getUTCMonth() + 1).padStart(2, '0')}-${String(firstDay.getUTCDate()).padStart(2, '0')}`,
-          endDate: `${lastDay.getUTCFullYear()}-${String(lastDay.getUTCMonth() + 1).padStart(2, '0')}-${String(lastDay.getUTCDate()).padStart(2, '0')}`,
+          startDate: startDateISO,
+          endDate: endDateISO,
         },
       });
       setMonthData(res.data);
@@ -653,7 +634,7 @@ function CalendarTab({
     if (!selectedProperty || !monthData) return null;
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const daySlots = monthData.slots?.filter((s: any) => {
-      const slotDate = toFrontendDate(s.date);
+      const slotDate = toFrontend(s.date);
       return slotDate === dateStr && s.propertyId === selectedProperty;
     });
     if (!daySlots || daySlots.length === 0) return null;
@@ -708,7 +689,7 @@ function CalendarTab({
     try {
       await api.post('/calendar/custom-slots', {
         propertyId: selectedProperty,
-        date: toBackendDate(selectedDate),
+        date: toBackend(selectedDate),
         ...customSlotsForm,
       });
       await fetchSlots();
@@ -774,7 +755,7 @@ function CalendarTab({
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
 
               const daySlots = monthData?.slots?.filter((s: any) => {
-                const slotDate = toFrontendDate(s.date);
+                const slotDate = toFrontend(s.date);
                 return slotDate === dateStr && s.propertyId === selectedProperty;
               }) || [];
 
@@ -914,7 +895,7 @@ function CalendarTab({
 
                     const monthSlotsByDate: Record<string, any[]> = {};
                     propSlots.forEach((slot: any) => {
-                      const slotDate = toFrontendDate(slot.date);
+                      const slotDate = toFrontend(slot.date);
                       if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
                       monthSlotsByDate[slotDate].push(slot);
                     });
@@ -1168,99 +1149,55 @@ function CalendarTab({
                 Slots for {(() => { const [y, m, d] = selectedDate.split('-').map(Number); const date = new Date(y, m - 1, d); return date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); })()}
               </h3>
 
-              {slotsData.appointments && slotsData.appointments.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Existing Appointments</h4>
-                  <div className="space-y-2">
-                    {slotsData.appointments.map((apt: any) => (
-                      <div key={apt.id || `slot-${apt.timeSet}`} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {apt.timeSet}
-                          </span>
-                          <span className="text-sm text-gray-500 ml-2">
-                            - {apt.client?.name} {apt.client?.lastName1}
-                          </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {slotsData.slots.map((slot: any) => {
+                  const { hours: startH, minutes: startM } = parseTime(slot.startTime);
+                  const { hours: endH, minutes: endM } = parseTime(slot.endTime);
+                  const startStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+                  const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+                  return (
+                  <div
+                    key={slot.id}
+                    className={`p-4 rounded-lg border-2 ${
+                      slot.type === 'AVAILABLE' ? 'bg-green-50 border-green-200' :
+                      slot.type === 'RESERVED' ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {startStr} - {endStr}
                         </div>
-                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                          apt.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                          apt.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {apt.status}
-                        </span>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {slot.type === 'AVAILABLE' ? '✅ Available for booking' :
+                           slot.type === 'RESERVED' ? '⏰ Reserved (personal use)' :
+                           '🔒 Blocked (unavailable)'}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <h4 className="text-sm font-medium text-gray-700 mb-2">⏱️ Time Slots by Property</h4>
-              
-              {properties.map((prop: any) => {
-                const propSlots = slotsData.slots.filter((s: any) => s.propertyId === prop.id);
-                if (propSlots.length === 0) return null;
-                
-                return (
-                  <div key={prop.id} className="mb-6">
-                    <h5 className="text-base font-semibold text-gray-800 mb-2">
-                      🏠 {prop.address}
-                    </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {propSlots.map((slot: any) => {
-                        const slotFrontendDate = toFrontendDate(slot.date);
-                        const { hours: startH, minutes: startM } = parseTime(slot.startTime);
-                        const { hours: endH, minutes: endM } = parseTime(slot.endTime);
-                        const startStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
-                        const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-                        return (
-                        <div
-                          key={slot.id}
-                          className={`p-4 rounded-lg border-2 ${
-                            slot.type === 'AVAILABLE' ? 'bg-green-50 border-green-200' :
-                            slot.type === 'RESERVED' ? 'bg-yellow-50 border-yellow-200' :
-                            'bg-red-50 border-red-200'
-                          }`}
+                       <div className="flex space-x-1">
+                        <button
+                          onClick={() => cycleSlotType(slot)}
+                          className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
                         >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium text-gray-900">
-                                {startStr}
-                                {' - '}
-                                {endStr}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                {slot.type === 'AVAILABLE' ? '✅ Available for booking' :
-                                 slot.type === 'RESERVED' ? '⏰ Reserved (personal use)' :
-                                 '🔒 Blocked (unavailable)'}
-                              </div>
-                            </div>
-                             <div className="flex space-x-1">
-                              <button
-                                onClick={() => cycleSlotType(slot)}
-                                className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
-                              >
-                                Change
-                              </button>
-                              <button
-                                onClick={() => deleteSlot(slot.id)}
-                                className="text-xs px-2 py-1 rounded bg-white border border-red-300 text-red-600 hover:bg-red-50"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                      })}
+                          Change
+                        </button>
+                        <button
+                          onClick={() => deleteSlot(slot.id)}
+                          className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
+        </div>
+      )}
 
-          {!slotsData && !loadingSlots && (
+      {!slotsData && !loadingSlots && (
             <div className="text-center py-12 text-gray-500">
               <div className="text-4xl mb-3">🗓️</div>
               <p>Select a property and date, then click "Load Slots" to manage availability</p>

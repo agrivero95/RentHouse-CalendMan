@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { appointmentsApi, clientsApi, propertiesApi, calendarApi } from '@/lib/types';
+import { toBackend } from '@/lib/date';
 
 const DAYS_OF_WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = [
@@ -29,16 +30,7 @@ export default function BookingPage() {
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState('');
 
-  // Helper: convert YYYY-MM-DD to DD-MM-YY
-  const toBackendDate = (dateStr: string): string => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${String(y).slice(-2)}`;
-  };
 
-  // Helper: parse HH:mm string
-  const parseTime = (timeStr: string): string => {
-    return timeStr;
-  };
   const [formData, setFormData] = useState({
     name: '',
     lastName1: '',
@@ -110,7 +102,7 @@ export default function BookingPage() {
 
     setSlotsLoading(true);
     try {
-      const response = await appointmentsApi.getAvailableSlots(propertyId, toBackendDate(dateStr));
+      const response = await appointmentsApi.getAvailableSlots(propertyId, toBackend(dateStr));
       setAvailableSlots(response.data.slots || []);
     } catch {
       setAvailableSlots([]);
@@ -129,11 +121,7 @@ export default function BookingPage() {
   const isDateAvailable = (day: number) => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return availableDays.some(
-      (d: any) => {
-        const [dd, mm, yyyy] = d.dateStr.split('-').map(Number);
-        const frontendDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-        return frontendDate === dateStr && d.hasAvailableSlots;
-      }
+      (d: any) => d.dateStr === dateStr && d.hasAvailableSlots
     );
   };
 
@@ -141,7 +129,8 @@ export default function BookingPage() {
     if (!selectedDate) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const selected = new Date(selectedDate);
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const selected = new Date(y, m - 1, d);
     selected.setHours(0, 0, 0, 0);
 
     const isTodayOrFuture = selected >= today;
@@ -201,20 +190,13 @@ export default function BookingPage() {
       const isInPast = isDateInPast(day);
       const isAvailable = isDateAvailable(day);
       const isSelected = selectedDate === dateStr;
-      const hasAvailableSlots = availableDays.some(
-        (d: any) => {
-          const [dd, mm, yyyy] = d.dateStr.split('-').map(Number);
-          const frontendDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-          return frontendDate === dateStr && d.hasAvailableSlots;
-        }
-      );
 
       days.push({
         type: 'day',
         day,
         dateStr,
         isInPast,
-        isAvailable: hasAvailableSlots,
+        isAvailable,
         isSelected,
         key: `day-${day}`,
       });
@@ -316,6 +298,10 @@ export default function BookingPage() {
 
               {monthLoading ? (
                 <div className="text-center py-8 text-gray-500">Cargando disponibilidad...</div>
+              ) : availableDays.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No hay horarios configurados para esta propiedad en el mes seleccionado.
+                </div>
               ) : (
                 <div className="grid grid-cols-7 gap-1">
                   {calendarDays.map((item: any) => {
@@ -330,14 +316,14 @@ export default function BookingPage() {
                         key={item.key}
                         onClick={() => isSelectable && handleDateSelect(item.day)}
                         disabled={!isSelectable}
-                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
+                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all border-2 ${
                           item.isSelected
-                            ? 'bg-blue-600 text-white'
+                            ? 'border-blue-600 bg-blue-600 text-white'
                             : item.isInPast
-                            ? 'text-gray-300 cursor-not-allowed'
+                            ? 'border-gray-100 text-gray-300 cursor-not-allowed'
                             : isSelectable
-                            ? 'bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 border-2 border-transparent cursor-pointer'
-                            : 'text-gray-400 cursor-not-allowed'
+                            ? 'border-green-400 bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer'
+                            : 'border-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                         title={
                           item.isInPast
@@ -356,7 +342,7 @@ export default function BookingPage() {
 
               <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-green-50" />
+                  <div className="w-4 h-4 rounded border border-green-400 bg-green-50" />
                   <span>Disponible</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -364,8 +350,12 @@ export default function BookingPage() {
                   <span>Seleccionado</span>
                 </div>
                 <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded border border-gray-100 bg-gray-50" />
+                  <span>Sin slots</span>
+                </div>
+                <div className="flex items-center gap-1">
                   <div className="w-4 h-4 rounded bg-gray-200" />
-                  <span>No disponible</span>
+                  <span>Pasado</span>
                 </div>
               </div>
             </div>
