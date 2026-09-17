@@ -162,13 +162,13 @@ export class CalendarService {
     });
 
     const bookedDates = new Set(appointmentDates.map((apt) => {
-      const d = new Date(apt.dateSet);
+      const d = new Date(apt.dateSet.getFullYear(), apt.dateSet.getMonth(), apt.dateSet.getDate());
       return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     }));
 
     const availableDays = slots
       .map((slot) => {
-        const d = new Date(slot.date);
+        const d = new Date(slot.date.getFullYear(), slot.date.getMonth(), slot.date.getDate());
         return {
           date: slot.date,
           day: d.getDate(),
@@ -182,11 +182,11 @@ export class CalendarService {
   }
 
   async createCustomSlots(propertyId: string, date: string, startTime: string, endTime: string, duration: number, type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') {
+    const [year, month, day] = date.split('-').map(Number);
+    const slotDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+
     const start = new Date(`${date}T${startTime}`);
     const end = new Date(`${date}T${endTime}`);
-
-    const slotDate = new Date(start);
-    slotDate.setHours(0, 0, 0, 0);
 
     const createdSlots: any[] = [];
     const durationMs = duration * 60 * 1000;
