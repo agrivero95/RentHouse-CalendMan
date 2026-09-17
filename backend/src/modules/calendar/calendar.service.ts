@@ -132,6 +132,55 @@ export class CalendarService {
     };
   }
 
+  async getAvailableDays(propertyId: string, startDate: Date, endDate: Date) {
+    const slots = await this.prisma.timeSlot.findMany({
+      where: {
+        propertyId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        type: 'AVAILABLE',
+      },
+      select: { date: true },
+      distinct: ['date'],
+    });
+
+    const appointmentDates = await this.prisma.appointment.findMany({
+      where: {
+        propertyId,
+        dateSet: {
+          gte: startDate,
+          lte: endDate,
+        },
+        status: {
+          not: 'CANCELLED',
+        },
+      },
+      select: { dateSet: true },
+      distinct: ['dateSet'],
+    });
+
+    const bookedDates = new Set(appointmentDates.map((apt) => {
+      const d = new Date(apt.dateSet);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    }));
+
+    const availableDays = slots
+      .map((slot) => {
+        const d = new Date(slot.date);
+        return {
+          date: slot.date,
+          day: d.getDate(),
+          month: d.getMonth(),
+          year: d.getFullYear(),
+          hasAvailableSlots: !bookedDates.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`),
+        };
+      });
+
+    return availableDays;
+  }
+
   async createCustomSlots(propertyId: string, date: string, startTime: string, endTime: string, duration: number, type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') {
     const start = new Date(`${date}T${startTime}`);
     const end = new Date(`${date}T${endTime}`);

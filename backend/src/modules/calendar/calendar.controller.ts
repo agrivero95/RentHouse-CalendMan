@@ -91,6 +91,19 @@ export class CalendarController {
     return this.calendarService.getMonthSlots(localStart, localEnd);
   }
 
+  @Get('available-days/:propertyId')
+  getAvailableDays(
+    @Param('propertyId') propertyId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const localStart = new Date(sy, sm - 1, sd);
+    const localEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    return this.calendarService.getAvailableDays(propertyId, localStart, localEnd);
+  }
+
   @Post('custom-slots')
   @UseGuards(AdminGuard)
   createCustomSlots(

@@ -1,15 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { appointmentsApi, clientsApi, propertiesApi } from '@/lib/types';
+import { appointmentsApi, clientsApi, propertiesApi, calendarApi } from '@/lib/types';
+
+const DAYS_OF_WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MONTHS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getFirstDayOfMonth(year: number, month: number) {
+  return new Date(year, month, 1).getDay();
+}
 
 export default function BookingPage() {
   const params = useParams();
   const propertyId = params?.id as string;
   const [property, setProperty] = useState<any>(null);
-  const [date, setDate] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [selectedDate, setSelectedDate] = useState('');
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState('');
   const [formData, setFormData] = useState({
@@ -24,6 +40,8 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [availableDays, setAvailableDays] = useState<any[]>([]);
+  const [monthLoading, setMonthLoading] = useState(false);
 
   useEffect(() => {
     if (propertyId) {
@@ -31,20 +49,92 @@ export default function BookingPage() {
     }
   }, [propertyId]);
 
-  const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDate(e.target.value);
-    setSelectedSlot('');
-    if (e.target.value && propertyId) {
-      setSlotsLoading(true);
-      try {
-        const response = await appointmentsApi.getAvailableSlots(propertyId, e.target.value);
-        setAvailableSlots(response.data.slots || []);
-      } catch {
-        setAvailableSlots([]);
-      } finally {
-        setSlotsLoading(false);
+  useEffect(() => {
+    loadAvailableDays();
+  }, [currentMonth, currentYear, propertyId]);
+
+  const loadAvailableDays = async () => {
+    if (!propertyId) return;
+    setMonthLoading(true);
+    try {
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      const response = await calendarApi.getAvailableDays(
+        propertyId,
+        firstDay.toISOString().split('T')[0],
+        lastDay.toISOString().split('T')[0],
+      );
+      setAvailableDays(response.data || []);
+    } catch {
+      setAvailableDays([]);
+    } finally {
+      setMonthLoading(false);
+    }
+  };
+
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
+    } else {
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(currentMonth + 1);
       }
     }
+  };
+
+  const handleDateSelect = async (day: number) => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedDate(dateStr);
+    setSelectedSlot('');
+    setStep(2);
+
+    setSlotsLoading(true);
+    try {
+      const response = await appointmentsApi.getAvailableSlots(propertyId, dateStr);
+      setAvailableSlots(response.data.slots || []);
+    } catch {
+      setAvailableSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
+
+  const isDateInPast = (day: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const date = new Date(currentYear, currentMonth, day);
+    return date < today;
+  };
+
+  const isDateAvailable = (day: number) => {
+    return availableDays.some(
+      (d: any) => d.day === day && d.month === currentMonth && d.year === currentYear && d.hasAvailableSlots
+    );
+  };
+
+  const isSlotAvailable = (slotStart: string) => {
+    if (!selectedDate) return false;
+    const slotDate = new Date(slotStart).toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+
+    const isTodayOrFuture = selected >= today;
+    return isSlotAvailableInList(slotStart) && isTodayOrFuture;
+  };
+
+  const isSlotAvailableInList = (slotStart: string) => {
+    const slot = availableSlots.find((s: any) => s.start === slotStart);
+    return slot?.available !== false;
   };
 
   const handleBooking = async () => {
@@ -64,7 +154,7 @@ export default function BookingPage() {
       const appointmentData = {
         clientId: client.id,
         propertyId,
-        dateSet: date,
+        dateSet: selectedDate,
         timeSet: selectedSlot,
         duration: 15,
         notes: formData.notes,
@@ -73,12 +163,45 @@ export default function BookingPage() {
       await appointmentsApi.create(appointmentData);
       setSuccess(true);
       setStep(4);
-    } catch (error) {
-      alert('Error al crear la cita. Por favor intente nuevamente.');
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Error al crear la cita. Por favor intente nuevamente.';
+      alert(message);
     } finally {
       setLoading(false);
     }
   };
+
+  const calendarDays = useMemo(() => {
+    const days: any[] = [];
+    const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+
+    for (let i = 0; i < firstDay; i++) {
+      days.push({ type: 'empty', key: `empty-${i}` });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isInPast = isDateInPast(day);
+      const isAvailable = isDateAvailable(day);
+      const isSelected = selectedDate === dateStr;
+      const hasAvailableSlots = availableDays.some(
+        (d: any) => d.day === day && d.month === currentMonth && d.year === currentYear && d.hasAvailableSlots
+      );
+
+      days.push({
+        type: 'day',
+        day,
+        dateStr,
+        isInPast,
+        isAvailable: hasAvailableSlots,
+        isSelected,
+        key: `day-${day}`,
+      });
+    }
+
+    return days;
+  }, [currentYear, currentMonth, availableDays, selectedDate]);
 
   if (success) {
     return (
@@ -95,7 +218,7 @@ export default function BookingPage() {
               <strong>Propiedad:</strong> {property?.address}
             </p>
             <p className="text-sm text-gray-600">
-              <strong>Fecha:</strong> {date}
+              <strong>Fecha:</strong> {selectedDate}
             </p>
             <p className="text-sm text-gray-600">
               <strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
@@ -144,58 +267,157 @@ export default function BookingPage() {
 
           {step === 1 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Paso 1: Seleccione Fecha y Hora</h2>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha:</label>
-              <input
-                type="date"
-                value={date}
-                onChange={handleDateChange}
-                min={new Date().toISOString().split('T')[0]}
-                className="input-field mb-4"
-                required
-              />
-              {slotsLoading ? (
-                <div className="text-center py-8 text-gray-500">Cargando horarios disponibles...</div>
-              ) : availableSlots.length > 0 ? (
-                <div>
-                  <h3 className="font-medium mb-2 text-gray-700">Horarios Disponibles</h3>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {availableSlots.map((slot: any) => (
-                      <button
-                        key={slot.start}
-                        onClick={() => setSelectedSlot(slot.start)}
-                        className={`p-3 rounded-lg border-2 transition-all ${
-                          selectedSlot === slot.start
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                        }`}
-                      >
-                        {new Date(slot.start).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                      </button>
-                    ))}
+              <h2 className="text-xl font-semibold mb-4">Paso 1: Seleccione una Fecha</h2>
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => handleMonthChange('prev')}
+                  className="p-2 rounded-lg hover:bg-gray-100"
+                >
+                  ←
+                </button>
+                <h3 className="text-lg font-semibold">
+                  {MONTHS[currentMonth]} {currentYear}
+                </h3>
+                <button
+                  onClick={() => handleMonthChange('next')}
+                  className="p-2 rounded-lg hover:bg-gray-100"
+                >
+                  →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {DAYS_OF_WEEK.map((day) => (
+                  <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+                    {day}
                   </div>
-                </div>
-              ) : date && (
-                <div className="text-center py-8 text-gray-500">
-                  No hay horarios disponibles para esta fecha
+                ))}
+              </div>
+
+              {monthLoading ? (
+                <div className="text-center py-8 text-gray-500">Cargando disponibilidad...</div>
+              ) : (
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((item: any) => {
+                    if (item.type === 'empty') {
+                      return <div key={item.key} className="aspect-square" />;
+                    }
+
+                    const isSelectable = item.isAvailable && !item.isInPast;
+
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => isSelectable && handleDateSelect(item.day)}
+                        disabled={!isSelectable}
+                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
+                          item.isSelected
+                            ? 'bg-blue-600 text-white'
+                            : item.isInPast
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : isSelectable
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 border-2 border-transparent cursor-pointer'
+                            : 'text-gray-400 cursor-not-allowed'
+                        }`}
+                        title={
+                          item.isInPast
+                            ? 'Fecha pasada'
+                            : item.isAvailable
+                            ? 'Fecha disponible'
+                            : 'Sin slots disponibles'
+                        }
+                      >
+                        {item.day}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-              <button
-                onClick={() => step < 2 && setStep(2)}
-                disabled={!selectedSlot}
-                className="btn-primary mt-6 w-full disabled:opacity-50"
-              >
-                Continuar
-              </button>
+
+              <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-green-50" />
+                  <span>Disponible</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-blue-600" />
+                  <span>Seleccionado</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-gray-200" />
+                  <span>No disponible</span>
+                </div>
+              </div>
             </div>
           )}
 
           {step === 2 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Paso 2: Sus Datos Personales</h2>
+              <h2 className="text-xl font-semibold mb-4">Paso 2: Seleccione un Horario</h2>
+              <p className="text-gray-600 mb-4">
+                Fecha seleccionada: <strong>{selectedDate}</strong>
+              </p>
+              {slotsLoading ? (
+                <div className="text-center py-8 text-gray-500">Cargando horarios disponibles...</div>
+              ) : availableSlots.length > 0 ? (
+                <div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {availableSlots.map((slot: any) => (
+                      <button
+                        key={slot.start}
+                        onClick={() => {
+                          if (isSlotAvailable(slot.start)) {
+                            setSelectedSlot(slot.start);
+                          } else {
+                            alert('Este horario ya no está disponible');
+                          }
+                        }}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          selectedSlot === slot.start
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
+                            : isSlotAvailable(slot.start)
+                            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700'
+                            : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                        }`}
+                        disabled={!isSlotAvailable(slot.start)}
+                      >
+                        {new Date(slot.start).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setStep(3)}
+                    disabled={!selectedSlot}
+                    className="btn-primary mt-6 w-full disabled:opacity-50"
+                  >
+                    Continuar
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No hay horarios disponibles para esta fecha
+                </div>
+              )}
+              <button onClick={() => setStep(1)} className="btn-secondary mt-4 w-full">
+                Regresar
+              </button>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Paso 3: Sus Datos Personales</h2>
               <p className="text-gray-500 mb-4">
                 Por favor complete sus datos para registrar su información como cliente.
               </p>
+              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                <p className="text-sm text-gray-700">
+                  <strong>Fecha:</strong> {selectedDate}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs
+                </p>
+              </div>
               <div className="space-y-4">
                 <input
                   type="text"
@@ -238,11 +460,11 @@ export default function BookingPage() {
                 />
               </div>
               <div className="flex gap-4 mt-6">
-                <button onClick={() => setStep(1)} className="btn-secondary w-full">
+                <button onClick={() => setStep(2)} className="btn-secondary w-full">
                   Regresar
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(4)}
                   disabled={!formData.name || !formData.lastName1 || !formData.email || !formData.phone}
                   className="btn-primary w-full disabled:opacity-50"
                 >
@@ -252,15 +474,15 @@ export default function BookingPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Paso 3: Confirmar Reserva</h2>
+              <h2 className="text-xl font-semibold mb-4">Paso 4: Confirmar Reserva</h2>
               <p className="text-gray-500 mb-4">
                 Revise los datos de su cita antes de confirmar.
               </p>
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <p className="text-gray-700"><strong>Propiedad:</strong> {property?.address}</p>
-                <p className="text-gray-700"><strong>Fecha:</strong> {date}</p>
+                <p className="text-gray-700"><strong>Fecha:</strong> {selectedDate}</p>
                 <p className="text-gray-700"><strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs</p>
                 <p className="text-gray-700"><strong>Duración:</strong> 15 minutos</p>
                 <hr className="my-3" />
@@ -282,7 +504,7 @@ export default function BookingPage() {
                 </p>
               </div>
               <div className="flex gap-4">
-                <button onClick={() => setStep(2)} className="btn-secondary w-full">
+                <button onClick={() => setStep(3)} className="btn-secondary w-full">
                   Regresar
                 </button>
                 <button

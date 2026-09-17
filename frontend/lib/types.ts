@@ -135,6 +135,8 @@ export const calendarApi = {
     api.post(`/calendar/block/${propertyId}`, null, { params: { date, type } }),
   getMonthSlots: (startDate: string, endDate: string) =>
     api.get('/calendar/month', { params: { startDate, endDate } }),
+  getAvailableDays: (propertyId: string, startDate: string, endDate: string) =>
+    api.get(`/calendar/available-days/${propertyId}`, { params: { startDate, endDate } }),
 };
 
 export const notificationsApi = {

@@ -14,16 +14,75 @@ export class AppointmentService {
   ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
-    const appointment = await this.prisma.appointment.create({
-      data: {
-        clientId: createAppointmentDto.clientId,
+    const dateSet = new Date(createAppointmentDto.dateSet);
+    const dateStartOfDay = new Date(dateSet);
+    dateStartOfDay.setHours(0, 0, 0, 0);
+    const dateEndOfDay = new Date(dateSet);
+    dateEndOfDay.setHours(23, 59, 59, 999);
+
+    const timeSlot = await this.prisma.timeSlot.findFirst({
+      where: {
         propertyId: createAppointmentDto.propertyId,
-        dateSet: new Date(createAppointmentDto.dateSet),
-        timeSet: new Date(createAppointmentDto.timeSet),
-        duration: createAppointmentDto.duration || 15,
-        notes: createAppointmentDto.notes,
+        date: { gte: dateStartOfDay, lte: dateEndOfDay },
+        startTime: new Date(createAppointmentDto.timeSet),
       },
-      include: { client: true, property: true },
+    });
+
+    if (!timeSlot) {
+      throw new BadRequestException('No existe un slot disponible para este horario en la propiedad seleccionada');
+    }
+
+    if (timeSlot.type !== 'AVAILABLE') {
+      throw new BadRequestException('El slot seleccionado ya no está disponible');
+    }
+
+    const overlappingAppointment = await this.prisma.appointment.findFirst({
+      where: {
+        propertyId: createAppointmentDto.propertyId,
+        dateSet: { gte: dateStartOfDay, lte: dateEndOfDay },
+        status: { not: 'CANCELLED' },
+        timeSet: new Date(createAppointmentDto.timeSet),
+      },
+    });
+
+    if (overlappingAppointment) {
+      throw new BadRequestException('Este slot ya fue reservado por otro cliente');
+    }
+
+    const existingAppointmentToday = await this.prisma.appointment.findFirst({
+      where: {
+        propertyId: createAppointmentDto.propertyId,
+        dateSet: { gte: dateStartOfDay, lte: dateEndOfDay },
+        status: { not: 'CANCELLED' },
+      },
+    });
+
+    if (existingAppointmentToday) {
+      throw new BadRequestException('Ya existe una cita agendada para esta propiedad en la fecha seleccionada');
+    }
+
+    const duration = createAppointmentDto.duration || 15;
+    const slotEnd = new Date(new Date(createAppointmentDto.timeSet).getTime() + duration * 60000);
+
+    const appointment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.appointment.create({
+        data: {
+          clientId: createAppointmentDto.clientId,
+          propertyId: createAppointmentDto.propertyId,
+          dateSet,
+          timeSet: new Date(createAppointmentDto.timeSet),
+          duration,
+          notes: createAppointmentDto.notes,
+        },
+        include: { client: true, property: true },
+      });
+
+      await tx.timeSlot.update({
+        where: { id: timeSlot.id },
+        data: { type: 'RESERVED' },
+      });
+
+      return created;
     });
 
     await this.prisma.confirmationToken.create({
@@ -138,6 +197,17 @@ export class AppointmentService {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
+    const timeSlots = await this.prisma.timeSlot.findMany({
+      where: {
+        propertyId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+
     const appointments = await this.prisma.appointment.findMany({
       where: {
         propertyId,
@@ -147,6 +217,10 @@ export class AppointmentService {
       orderBy: { timeSet: 'asc' },
     });
 
+    const hasExistingAppointment = appointments.some(
+      (apt) => apt.status !== 'CANCELLED'
+    );
+
     const occupiedSlots = appointments
       .filter((apt) => apt.status !== 'CANCELLED')
       .map((apt) => ({
@@ -154,39 +228,24 @@ export class AppointmentService {
         end: new Date(new Date(apt.timeSet).getTime() + apt.duration * 60000),
       }));
 
-    const businessHours = [
-      { start: 9, end: 12 },
-      { start: 14, end: 18 },
-    ];
-
-    const slots: any[] = [];
-
-    for (const hours of businessHours) {
-      let currentHour = hours.start;
-      while (currentHour < hours.end) {
-        const slotStart = new Date(date);
-        slotStart.setHours(currentHour, 0, 0, 0);
-        const slotEnd = new Date(date);
-        slotEnd.setHours(currentHour + 1, 0, 0, 0);
-
+    const slots = timeSlots
+      .filter((slot) => slot.type === 'AVAILABLE')
+      .map((slot) => {
         const isOccupied = occupiedSlots.some(
           (occupied) =>
-            (slotStart >= occupied.start && slotStart < occupied.end) ||
-            (slotEnd > occupied.start && slotEnd <= occupied.end) ||
-            (slotStart <= occupied.start && slotEnd >= occupied.end),
+            (slot.startTime >= occupied.start && slot.startTime < occupied.end) ||
+            (slot.endTime > occupied.start && slot.endTime <= occupied.end) ||
+            (slot.startTime <= occupied.start && slot.endTime >= occupied.end),
         );
 
-        if (!isOccupied) {
-          slots.push({
-            start: slotStart,
-            end: slotEnd,
-            available: true,
-          });
-        }
-
-        currentHour++;
-      }
-    }
+        return {
+          start: slot.startTime,
+          end: slot.endTime,
+          available: !isOccupied && !hasExistingAppointment,
+          id: slot.id,
+        };
+      })
+      .filter((slot) => slot.available);
 
     return { slots, appointments };
   }
