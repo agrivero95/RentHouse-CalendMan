@@ -30,18 +30,6 @@ export default function AdminPage() {
     return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
   };
 
-  // Helper: convert DD-MM-YYYY (backend) to YYYY-MM-DD (frontend)
-  const toFrontendDate = (backendDate: string): string => {
-    const [d, m, y] = backendDate.split('-').map(Number);
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  };
-
-  // Helper: parse HH:mm string to hours and minutes
-  const parseTime = (timeStr: string): { hours: number; minutes: number } => {
-    const [h, m] = timeStr.split(':').map(Number);
-    return { hours: h, minutes: m };
-  };
-
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -516,6 +504,10 @@ export default function AdminPage() {
               blockingAll={blockingAll}
               cycleSlotType={cycleSlotType}
               deleteSlot={deleteSlot}
+              toBackendDate={(dateStr: string) => {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+              }}
             />
           )}
         </div>
@@ -566,6 +558,24 @@ function CalendarTab({
     type: 'AVAILABLE' as 'AVAILABLE' | 'RESERVED' | 'BLOCKED',
   });
   const [creatingSlots, setCreatingSlots] = useState(false);
+
+  // Helper: convert YYYY-MM-DD (frontend) to DD-MM-YYYY (backend)
+  const toBackendDate = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+  };
+
+  // Helper: convert DD-MM-YYYY (backend) to YYYY-MM-DD (frontend)
+  const toFrontendDate = (backendDate: string): string => {
+    const [d, m, y] = backendDate.split('-').map(Number);
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  };
+
+  // Helper: parse HH:mm string to hours and minutes
+  const parseTime = (timeStr: string): { hours: number; minutes: number } => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return { hours: h, minutes: m };
+  };
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
