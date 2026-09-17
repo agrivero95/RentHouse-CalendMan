@@ -219,20 +219,6 @@ export class AppointmentService {
       },
     });
 
-    await this.prisma.$transaction([
-      this.prisma.appointment.update({
-        where: { id },
-        data: { status: 'CANCELLED' },
-      }),
-    ]);
-
-    if (timeSlot) {
-      await this.prisma.timeSlot.update({
-        where: { id: timeSlot.id },
-        data: { type: 'AVAILABLE' },
-      });
-    }
-
     await this.notificationService.createNotification({
       appointmentId: id,
       recipientId: appointment.clientId,
@@ -241,6 +227,15 @@ export class AppointmentService {
       title: 'Cita Eliminada',
       message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido eliminada`,
     });
+
+    await this.prisma.appointment.delete({ where: { id } });
+
+    if (timeSlot) {
+      await this.prisma.timeSlot.update({
+        where: { id: timeSlot.id },
+        data: { type: 'AVAILABLE' },
+      });
+    }
 
     return { deleted: true, id };
   }
