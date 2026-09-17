@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { propertiesApi } from '@/lib/types';
 
 export default function PropertiesPage() {
+  const router = useRouter();
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,19 +34,19 @@ export default function PropertiesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {properties.map((property) => (
-              <Link key={property.id} href={`/properties/${property.id}`} className="card hover:shadow-lg transition-shadow flex flex-col">
-                <h3 className="text-lg font-semibold text-gray-900">{property.address}</h3>
-                <p className="text-gray-500 mt-2">{property.description || 'Sin descripción'}</p>
-                <div className="mt-4 text-sm text-blue-600">
-                  Propietario: {property.owner?.name} {property.owner?.lastName1}
-                </div>
-                <div className="mt-auto pt-4">
-                  <Link href={`/booking/${property.id}`} className="btn-primary w-full text-center block">
-                    Agendar Cita
-                  </Link>
-                </div>
-              </Link>
-            ))}
+               <div key={property.id} className="card hover:shadow-lg transition-shadow flex flex-col" onClick={() => router.push(`/properties/${property.id}`)}>
+                 <h3 className="text-lg font-semibold text-gray-900">{property.address}</h3>
+                 <p className="text-gray-500 mt-2">{property.description || 'Sin descripción'}</p>
+                 <div className="mt-4 text-sm text-blue-600">
+                   Propietario: {property.owner?.name} {property.owner?.lastName1}
+                 </div>
+                 <div className="mt-auto pt-4">
+                   <Link href={`/booking/${property.id}`} className="btn-primary w-full text-center block" onClick={(e) => e.stopPropagation()}>
+                     Agendar Cita
+                   </Link>
+                 </div>
+               </div>
+             ))}
           </div>
         )}
       </div>
