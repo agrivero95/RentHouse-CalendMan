@@ -1094,7 +1094,7 @@ function CalendarTab({
                   <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Existing Appointments</h4>
                   <div className="space-y-2">
                     {slotsData.appointments.map((apt: any) => (
-                      <div key={apt.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                      <div key={apt.id || `slot-${apt.timeSet}`} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                         <div>
                           <span className="text-sm font-medium text-gray-900">
                             {new Date(apt.timeSet).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
