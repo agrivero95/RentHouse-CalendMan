@@ -99,10 +99,19 @@ export class CalendarService {
       const [y, m, d] = yyyyMMDD.split('-').map(Number);
       return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
     };
-    const startISO = toISO(startDate);
-    const endISO = toISO(endDate);
-    const startDB = fromISO(startISO);
-    const endDB = fromISO(endISO);
+
+    let startDB: string, endDB: string, startISO: string, endISO: string;
+    if (startDate.includes('/') || startDate.length === 8) {
+      startDB = startDate;
+      endDB = endDate;
+      startISO = toISO(startDate);
+      endISO = toISO(endDate);
+    } else {
+      startISO = startDate;
+      endISO = endDate;
+      startDB = fromISO(startDate);
+      endDB = fromISO(endDate);
+    }
 
     const allSlots = await this.prisma.timeSlot.findMany({ orderBy: { date: 'asc' } });
     const slots = allSlots.filter((s: any) => s.date >= startDB && s.date <= endDB);
