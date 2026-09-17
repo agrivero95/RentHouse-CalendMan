@@ -109,11 +109,12 @@ export class NotificationService {
     const now = new Date();
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
-    return this.prisma.appointment.findMany({
+    const appointments = await this.prisma.appointment.findMany({
       where: {
         status: 'PENDING',
-        timeSet: {
-          gte: new Date(now.getTime() + 30 * 60 * 1000),
+        dateSet: {
+          gte: twoHoursAgo,
+          lte: new Date(now.getTime() + 2 * 60 * 60 * 1000),
         },
       },
       include: {
@@ -126,6 +127,14 @@ export class NotificationService {
           },
         },
       },
+    });
+
+    const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+    return appointments.filter((apt) => {
+      const [ah, am] = apt.timeSet.split(':').map(Number);
+      const aptDateTime = new Date(apt.dateSet);
+      aptDateTime.setHours(ah, am, 0, 0);
+      return aptDateTime >= thirtyMinFromNow;
     });
   }
 }

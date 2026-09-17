@@ -125,6 +125,11 @@ export class CalendarService {
   }
 
   async getAvailableDays(propertyId: string, startDate: string, endDate: string) {
+    const toISO = (ddmmYYYY: string): string => {
+      const [d, m, y] = ddmmYYYY.split('-').map(Number);
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    };
+
     const slots = await this.prisma.timeSlot.findMany({
       where: {
         propertyId,
@@ -141,14 +146,14 @@ export class CalendarService {
       where: {
         propertyId,
         dateSet: {
-          gte: new Date(startDate + 'T00:00:00'),
-          lte: new Date(endDate + 'T23:59:59'),
+          gte: new Date(toISO(startDate) + 'T00:00:00'),
+          lte: new Date(toISO(endDate) + 'T23:59:59'),
         },
         status: {
           not: 'CANCELLED',
         },
       },
-      select: { timeSet: true, duration: true },
+      select: { timeSet: true, duration: true, dateSet: true },
     });
 
     const dateMap = new Map<string, any>();
