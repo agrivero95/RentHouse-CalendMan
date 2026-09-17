@@ -140,8 +140,10 @@ export class CalendarService {
 
   async getAvailableDays(propertyId: string, startDate: string, endDate: string) {
     const toISO = (input: string): string => {
-      const [a, b, c] = input.split('-').map(Number);
-      return c.toString().length === 4 ? input : `${c}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+      const parts = input.split('-').map(Number);
+      const [a, b, c] = parts;
+      if (c.toString().length === 4) return input;
+      return `${c}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
     };
     const fromISO = (yyyyMMDD: string): string => {
       const [y, m, d] = yyyyMMDD.split('-').map(Number);
@@ -162,12 +164,19 @@ export class CalendarService {
     });
     const slots = allSlots.filter((s: any) => s.date >= startDB && s.date <= endDB);
 
+    const startISODate = new Date(startISO + 'T00:00:00');
+    const endISODate = new Date(endISO + 'T23:59:59');
+
+    if (isNaN(startISODate.getTime()) || isNaN(endISODate.getTime())) {
+      return { availableDays: [], monthData: {} };
+    }
+
     const appointmentSlots = await this.prisma.appointment.findMany({
       where: {
         propertyId,
         dateSet: {
-          gte: new Date(startISO + 'T00:00:00'),
-          lte: new Date(endISO + 'T23:59:59'),
+          gte: startISODate,
+          lte: endISODate,
         },
         status: {
           not: 'CANCELLED',
