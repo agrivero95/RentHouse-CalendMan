@@ -85,7 +85,9 @@ export class AppointmentController {
     @Param('propertyId') propertyId: string,
     @Query('date') date: string,
   ) {
-    return this.appointmentService.findAvailableSlots(propertyId, new Date(date));
+    const [y, m, d] = date.split('-').map(Number);
+    const localDate = new Date(y, m - 1, d);
+    return this.appointmentService.findAvailableSlots(propertyId, localDate);
   }
 
   @Post('confirm/:token')

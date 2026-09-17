@@ -14,11 +14,10 @@ export class AppointmentService {
   ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
-    const dateSet = new Date(createAppointmentDto.dateSet);
-    const dateStartOfDay = new Date(dateSet);
-    dateStartOfDay.setHours(0, 0, 0, 0);
-    const dateEndOfDay = new Date(dateSet);
-    dateEndOfDay.setHours(23, 59, 59, 999);
+    const [y, m, d] = createAppointmentDto.dateSet.split('-').map(Number);
+    const dateSet = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const dateStartOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const dateEndOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
 
     const timeSlot = await this.prisma.timeSlot.findFirst({
       where: {
@@ -51,6 +50,7 @@ export class AppointmentService {
 
     const existingAppointmentToday = await this.prisma.appointment.findFirst({
       where: {
+        clientId: createAppointmentDto.clientId,
         propertyId: createAppointmentDto.propertyId,
         dateSet: { gte: dateStartOfDay, lte: dateEndOfDay },
         status: { not: 'CANCELLED' },
@@ -58,7 +58,7 @@ export class AppointmentService {
     });
 
     if (existingAppointmentToday) {
-      throw new BadRequestException('Ya existe una cita agendada para esta propiedad en la fecha seleccionada');
+      throw new BadRequestException('Ya tiene una cita agendada para esta propiedad en la fecha seleccionada');
     }
 
     const duration = createAppointmentDto.duration || 15;
@@ -85,7 +85,7 @@ export class AppointmentService {
       return created;
     });
 
-    await this.prisma.confirmationToken.create({
+    await this.prisma.confirmationTokens.create({
       data: {
         appointmentId: appointment.id,
         token: this.generateConfirmationToken(),
@@ -137,7 +137,7 @@ export class AppointmentService {
         client: true,
         property: true,
         notifications: { orderBy: { createdAt: 'desc' } },
-        confirmationToken: true,
+        confirmationTokens: true,
       },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -202,10 +202,6 @@ export class AppointmentService {
   async remove(id: string) {
     const appointment = await this.findOne(id);
 
-    if (appointment.status === 'CANCELLED') {
-      throw new BadRequestException('No se puede eliminar una cita ya cancelada. Use cancelar para revocar citas activas.');
-    }
-
     const dateStartOfDay = new Date(appointment.dateSet);
     dateStartOfDay.setHours(0, 0, 0, 0);
     const dateEndOfDay = new Date(appointment.dateSet);
@@ -219,18 +215,20 @@ export class AppointmentService {
       },
     });
 
-    await this.notificationService.createNotification({
-      appointmentId: id,
-      recipientId: appointment.clientId,
-      recipientType: 'CLIENT',
-      type: 'SYSTEM',
-      title: 'Cita Eliminada',
-      message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido eliminada`,
-    });
+    if (appointment.status !== 'CANCELLED') {
+      await this.notificationService.createNotification({
+        appointmentId: id,
+        recipientId: appointment.clientId,
+        recipientType: 'CLIENT',
+        type: 'SYSTEM',
+        title: 'Cita Eliminada',
+        message: `Su cita del ${new Date(appointment.dateSet).toLocaleDateString()} ha sido eliminada`,
+      });
+    }
 
     await this.prisma.appointment.delete({ where: { id } });
 
-    if (timeSlot) {
+    if (timeSlot && timeSlot.type !== 'AVAILABLE') {
       await this.prisma.timeSlot.update({
         where: { id: timeSlot.id },
         data: { type: 'AVAILABLE' },
@@ -263,10 +261,11 @@ export class AppointmentService {
   }
 
   async findAvailableSlots(propertyId: string, date: Date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
 
     const timeSlots = await this.prisma.timeSlot.findMany({
       where: {
@@ -288,10 +287,6 @@ export class AppointmentService {
       orderBy: { timeSet: 'asc' },
     });
 
-    const hasExistingAppointment = appointments.some(
-      (apt) => apt.status !== 'CANCELLED'
-    );
-
     const occupiedSlots = appointments
       .filter((apt) => apt.status !== 'CANCELLED')
       .map((apt) => ({
@@ -312,7 +307,7 @@ export class AppointmentService {
         return {
           start: slot.startTime,
           end: slot.endTime,
-          available: !isOccupied && !hasExistingAppointment,
+          available: !isOccupied,
           id: slot.id,
         };
       })
@@ -322,7 +317,7 @@ export class AppointmentService {
   }
 
   async confirmAppointment(token: string) {
-    const confirmationToken = await this.prisma.confirmationToken.findUnique({
+    const confirmationToken = await this.prisma.confirmationTokens.findUnique({
       where: { token },
       include: { appointment: { include: { client: true, property: true } } },
     });
@@ -344,7 +339,7 @@ export class AppointmentService {
         where: { id: confirmationToken.appointmentId },
         data: { status: 'CONFIRMED' },
       }),
-      this.prisma.confirmationToken.update({
+      this.prisma.confirmationTokens.update({
         where: { id: confirmationToken.id },
         data: { usedAt: new Date() },
       }),
