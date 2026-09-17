@@ -30,11 +30,7 @@ export class CalendarController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    const [sy, sm, sd] = startDate.split('-').map(Number);
-    const [ey, em, ed] = endDate.split('-').map(Number);
-    const utcStart = new Date(Date.UTC(sy, sm - 1, sd));
-    const utcEnd = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
-    return this.calendarService.findSlotsByProperty(propertyId, utcStart, utcEnd);
+    return this.calendarService.findSlotsByProperty(propertyId, startDate, endDate);
   }
 
   @Get('available/:propertyId')
@@ -42,9 +38,7 @@ export class CalendarController {
     @Param('propertyId') propertyId: string,
     @Query('date') date: string,
   ) {
-    const [y, m, d] = date.split('-').map(Number);
-    const utcDate = new Date(Date.UTC(y, m - 1, d));
-    return this.calendarService.getAvailableSlots(propertyId, utcDate);
+    return this.calendarService.getAvailableSlots(propertyId, date);
   }
 
   @Post('slots')
@@ -75,9 +69,7 @@ export class CalendarController {
     @Query('date') date: string,
     @Query('type') type: 'RESERVED' | 'BLOCKED',
   ) {
-    const [y, m, d] = date.split('-').map(Number);
-    const utcDate = new Date(Date.UTC(y, m - 1, d));
-    return this.calendarService.blockPropertySlots(propertyId, utcDate, type);
+    return this.calendarService.blockPropertySlots(propertyId, date, type);
   }
 
   @Get('month')
@@ -86,11 +78,7 @@ export class CalendarController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    const [sy, sm, sd] = startDate.split('-').map(Number);
-    const [ey, em, ed] = endDate.split('-').map(Number);
-    const utcStart = new Date(Date.UTC(sy, sm - 1, sd));
-    const utcEnd = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
-    return this.calendarService.getMonthSlots(utcStart, utcEnd);
+    return this.calendarService.getMonthSlots(startDate, endDate);
   }
 
   @Get('available-days/:propertyId')
@@ -99,11 +87,7 @@ export class CalendarController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    const [sy, sm, sd] = startDate.split('-').map(Number);
-    const [ey, em, ed] = endDate.split('-').map(Number);
-    const utcStart = new Date(Date.UTC(sy, sm - 1, sd));
-    const utcEnd = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
-    return this.calendarService.getAvailableDays(propertyId, utcStart, utcEnd);
+    return this.calendarService.getAvailableDays(propertyId, startDate, endDate);
   }
 
   @Post('custom-slots')

@@ -28,6 +28,17 @@ export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState('');
+
+  // Helper: convert YYYY-MM-DD to DD-MM-YY
+  const toBackendDate = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${String(y).slice(-2)}`;
+  };
+
+  // Helper: parse HH:mm string
+  const parseTime = (timeStr: string): string => {
+    return timeStr;
+  };
   const [formData, setFormData] = useState({
     name: '',
     lastName1: '',
@@ -57,12 +68,13 @@ export default function BookingPage() {
     if (!propertyId) return;
     setMonthLoading(true);
     try {
-      const firstDay = new Date(Date.UTC(currentYear, currentMonth, 1));
-      const lastDay = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999));
+      const firstDay = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const lastDay = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
       const response = await calendarApi.getAvailableDays(
         propertyId,
-        firstDay.toISOString().split('T')[0],
-        lastDay.toISOString().split('T')[0],
+        firstDay,
+        lastDay,
       );
       setAvailableDays(response.data || []);
     } catch {
@@ -98,7 +110,7 @@ export default function BookingPage() {
 
     setSlotsLoading(true);
     try {
-      const response = await appointmentsApi.getAvailableSlots(propertyId, dateStr);
+      const response = await appointmentsApi.getAvailableSlots(propertyId, toBackendDate(dateStr));
       setAvailableSlots(response.data.slots || []);
     } catch {
       setAvailableSlots([]);
@@ -118,16 +130,15 @@ export default function BookingPage() {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return availableDays.some(
       (d: any) => {
-        const slotDate = new Date(Date.UTC(d.year, d.month, d.day));
-        const slotDateStr = `${slotDate.getUTCFullYear()}-${String(slotDate.getUTCMonth() + 1).padStart(2, '0')}-${String(slotDate.getUTCDate()).padStart(2, '0')}`;
-        return slotDateStr === dateStr && d.hasAvailableSlots;
+        const [dd, mm, yyyy] = d.dateStr.split('-').map(Number);
+        const frontendDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        return frontendDate === dateStr && d.hasAvailableSlots;
       }
     );
   };
 
   const isSlotAvailable = (slotStart: string) => {
     if (!selectedDate) return false;
-    const slotDate = (() => { const d = new Date(slotStart); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selected = new Date(selectedDate);
@@ -191,7 +202,11 @@ export default function BookingPage() {
       const isAvailable = isDateAvailable(day);
       const isSelected = selectedDate === dateStr;
       const hasAvailableSlots = availableDays.some(
-        (d: any) => d.day === day && d.month === currentMonth && d.year === currentYear && d.hasAvailableSlots
+        (d: any) => {
+          const [dd, mm, yyyy] = d.dateStr.split('-').map(Number);
+          const frontendDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+          return frontendDate === dateStr && d.hasAvailableSlots;
+        }
       );
 
       days.push({
@@ -226,7 +241,7 @@ export default function BookingPage() {
               <strong>Fecha:</strong> {selectedDate}
             </p>
             <p className="text-sm text-gray-600">
-              <strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+              <strong>Hora:</strong> {selectedSlot} hrs
             </p>
           </div>
           <Link href="/" className="btn-primary inline-block">
@@ -386,7 +401,7 @@ export default function BookingPage() {
                         }`}
                         disabled={!isSlotAvailable(slot.start)}
                       >
-                        {new Date(slot.start).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                        {slot.start}
                       </button>
                     ))}
                   </div>
@@ -420,7 +435,7 @@ export default function BookingPage() {
                   <strong>Fecha:</strong> {selectedDate}
                 </p>
                 <p className="text-sm text-gray-700">
-                  <strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs
+                  <strong>Hora:</strong> {selectedSlot} hrs
                 </p>
               </div>
               <div className="space-y-4">
@@ -488,7 +503,7 @@ export default function BookingPage() {
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <p className="text-gray-700"><strong>Propiedad:</strong> {property?.address}</p>
                 <p className="text-gray-700"><strong>Fecha:</strong> {selectedDate}</p>
-                <p className="text-gray-700"><strong>Hora:</strong> {new Date(selectedSlot).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs</p>
+                <p className="text-gray-700"><strong>Hora:</strong> {selectedSlot} hrs</p>
                 <p className="text-gray-700"><strong>Duración:</strong> 15 minutos</p>
                 <hr className="my-3" />
                 <p className="text-gray-700"><strong>Nombre:</strong> {formData.name} {formData.lastName1} {formData.lastName2 || ''}</p>

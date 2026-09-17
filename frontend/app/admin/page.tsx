@@ -24,6 +24,24 @@ export default function AdminPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockingAll, setBlockingAll] = useState(false);
 
+  // Helper: convert YYYY-MM-DD (frontend) to DD-MM-YYYY (backend)
+  const toBackendDate = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+  };
+
+  // Helper: convert DD-MM-YYYY (backend) to YYYY-MM-DD (frontend)
+  const toFrontendDate = (backendDate: string): string => {
+    const [d, m, y] = backendDate.split('-').map(Number);
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  };
+
+  // Helper: parse HH:mm string to hours and minutes
+  const parseTime = (timeStr: string): { hours: number; minutes: number } => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return { hours: h, minutes: m };
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -58,7 +76,7 @@ export default function AdminPage() {
     setLoadingSlots(true);
     try {
       const response = await api.get(`/calendar/available/${selectedProperty}`, {
-        params: { date: selectedDate },
+        params: { date: toBackendDate(selectedDate) },
       });
       setSlotsData(response.data);
     } catch (error) {
@@ -73,7 +91,7 @@ export default function AdminPage() {
     setBlockingAll(true);
     try {
       await api.post(`/calendar/block/${selectedProperty}`, null, {
-        params: { date: selectedDate, type },
+        params: { date: toBackendDate(selectedDate), type },
       });
       await fetchSlots();
     } catch (error) {
@@ -113,7 +131,7 @@ export default function AdminPage() {
     try {
       await api.post('/calendar/custom-slots', {
         propertyId: selectedProperty,
-        date: selectedDate,
+        date: toBackendDate(selectedDate),
         ...customSlotsForm,
       });
       await fetchSlots();
@@ -625,7 +643,7 @@ function CalendarTab({
     if (!selectedProperty || !monthData) return null;
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const daySlots = monthData.slots?.filter((s: any) => {
-      const slotDate = (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+      const slotDate = toFrontendDate(s.date);
       return slotDate === dateStr && s.propertyId === selectedProperty;
     });
     if (!daySlots || daySlots.length === 0) return null;
@@ -680,7 +698,7 @@ function CalendarTab({
     try {
       await api.post('/calendar/custom-slots', {
         propertyId: selectedProperty,
-        date: selectedDate,
+        date: toBackendDate(selectedDate),
         ...customSlotsForm,
       });
       await fetchSlots();
@@ -746,7 +764,7 @@ function CalendarTab({
               const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, day).toDateString();
 
               const daySlots = monthData?.slots?.filter((s: any) => {
-                const slotDate = (() => { const d = new Date(s.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+                const slotDate = toFrontendDate(s.date);
                 return slotDate === dateStr && s.propertyId === selectedProperty;
               }) || [];
 
@@ -767,9 +785,11 @@ function CalendarTab({
                 propertyBreakdown[slot.propertyId][slot.type] = (propertyBreakdown[slot.propertyId][slot.type] || 0) + 1;
                 if (slot.type === 'RESERVED') {
                   hasPersonalTime = true;
-                  const start = new Date(slot.startTime);
-                  const end = new Date(slot.endTime);
-                  personalMinutes += (end.getTime() - start.getTime()) / 60000;
+                  const { hours: startH, minutes: startM } = parseTime(slot.startTime);
+                  const { hours: endH, minutes: endM } = parseTime(slot.endTime);
+                  const startMinutes = startH * 60 + startM;
+                  const endMinutes = endH * 60 + endM;
+                  personalMinutes += (endMinutes - startMinutes);
                 }
               });
 
@@ -884,7 +904,7 @@ function CalendarTab({
 
                     const monthSlotsByDate: Record<string, any[]> = {};
                     propSlots.forEach((slot: any) => {
-                      const slotDate = (() => { const d = new Date(slot.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+                      const slotDate = toFrontendDate(slot.date);
                       if (!monthSlotsByDate[slotDate]) monthSlotsByDate[slotDate] = [];
                       monthSlotsByDate[slotDate].push(slot);
                     });
@@ -1146,7 +1166,7 @@ function CalendarTab({
                       <div key={apt.id || `slot-${apt.timeSet}`} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                         <div>
                           <span className="text-sm font-medium text-gray-900">
-                            {new Date(apt.timeSet).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {apt.timeSet}
                           </span>
                           <span className="text-sm text-gray-500 ml-2">
                             - {apt.client?.name} {apt.client?.lastName1}
@@ -1177,7 +1197,13 @@ function CalendarTab({
                       🏠 {prop.address}
                     </h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {propSlots.map((slot: any) => (
+                      {propSlots.map((slot: any) => {
+                        const slotFrontendDate = toFrontendDate(slot.date);
+                        const { hours: startH, minutes: startM } = parseTime(slot.startTime);
+                        const { hours: endH, minutes: endM } = parseTime(slot.endTime);
+                        const startStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+                        const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+                        return (
                         <div
                           key={slot.id}
                           className={`p-4 rounded-lg border-2 ${
@@ -1189,9 +1215,9 @@ function CalendarTab({
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-medium text-gray-900">
-                                {new Date(slot.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {startStr}
                                 {' - '}
-                                {new Date(slot.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {endStr}
                               </div>
                               <div className="text-xs text-gray-500 mt-1">
                                 {slot.type === 'AVAILABLE' ? '✅ Available for booking' :
@@ -1200,22 +1226,23 @@ function CalendarTab({
                               </div>
                             </div>
                              <div className="flex space-x-1">
-                               <button
-                                 onClick={() => cycleSlotType(slot)}
-                                 className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
-                               >
-                                 Change
-                               </button>
-                               <button
-                                 onClick={() => deleteSlot(slot.id)}
-                                 className="text-xs px-2 py-1 rounded bg-white border border-red-300 text-red-600 hover:bg-red-50"
-                               >
-                                 Delete
-                               </button>
-                             </div>
+                              <button
+                                onClick={() => cycleSlotType(slot)}
+                                className="text-xs px-2 py-1 rounded bg-white border hover:bg-gray-50"
+                              >
+                                Change
+                              </button>
+                              <button
+                                onClick={() => deleteSlot(slot.id)}
+                                className="text-xs px-2 py-1 rounded bg-white border border-red-300 text-red-600 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 );

@@ -87,7 +87,7 @@ model Appointment {
   id           String             @id @default(uuid()) @db.Uuid()
   createdAt    DateTime           @default(now())
   dateSet      DateTime
-  timeSet      DateTime
+  timeSet      String
   duration     Int               @default(15)
   clientId     String             @db.Uuid()
   propertyId   String             @db.Uuid()
@@ -109,9 +109,9 @@ model Appointment {
 model TimeSlot {
   id         String       @id @default(uuid()) @db.Uuid()
   propertyId String        @db.Uuid()
-  date       DateTime
-  startTime  DateTime
-  endTime    DateTime
+  date       String
+  startTime  String
+  endTime    String
   type       TimeSlotType  @default(AVAILABLE)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt

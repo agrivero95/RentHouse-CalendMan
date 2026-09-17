@@ -13,7 +13,7 @@ export class CreateAppointmentDto {
   dateSet!: string;
 
   @IsNotEmpty()
-  timeSet!: Date;
+  timeSet!: string;
 
   @IsOptional()
   @IsInt()
