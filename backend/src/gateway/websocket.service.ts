@@ -1,9 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Server } from 'ws';
+import { Injectable, Logger } from '@nestjs/common';
+import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 
 export interface AuthenticatedWsClient {
-  ws: import('ws').WebSocket;
+  ws: WebSocket;
   adminId: string | null;
   username: string | null;
 }
@@ -20,17 +20,17 @@ export const WsEventTypes = {
 } as const;
 
 @Injectable()
-export class WebSocketService implements OnModuleDestroy {
+export class WebSocketService {
   private readonly logger = new Logger(WebSocketService.name);
-  private wss: Server | null = null;
+  private wss: import('ws').Server | null = null;
   private clients = new Map<string, AuthenticatedWsClient>();
 
   init(httpServer: any) {
-    this.wss = new Server({
+    this.wss = new (require('ws').Server)({
       noServer: true,
     });
 
-    this.wss.on('connection', (ws, req) => {
+    this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const url = new URL(req.url || '', 'http://localhost');
       const token = url.searchParams.get('token');
 
@@ -88,8 +88,7 @@ export class WebSocketService implements OnModuleDestroy {
     this.broadcast(event, data, adminId);
   }
 
-  onModuleDestroy() {
-    this.wss?.close();
-    this.clients.clear();
+  getConnectedClients() {
+    return this.clients.size;
   }
 }
