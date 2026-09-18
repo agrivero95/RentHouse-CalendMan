@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma.service';
 import { EmailService } from './email/email.service';
 import { fromISO } from '../../config/date.utils';
+import { WebSocketService, WsEventTypes } from '../../gateway/websocket.service';
 
 export interface NotificationData {
   appointmentId: string;
@@ -17,16 +18,23 @@ export class NotificationService {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
+    private websocketService: WebSocketService,
   ) {}
 
   async createNotification(data: NotificationData) {
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         ...data,
         status: 'PENDING',
       },
       include: { appointment: { include: { client: true } } },
     });
+
+    if (data.recipientType === 'ADMIN') {
+      this.websocketService.broadcast(WsEventTypes.ADMIN_NOTIFICATION, notification);
+    }
+
+    return notification;
   }
 
   async markAsSent(notificationId: string) {

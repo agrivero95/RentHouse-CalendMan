@@ -1,82 +1,127 @@
+'use client';
+
 import { useEffect, useRef, useCallback, useState } from 'react';
 
 type EventCallback = (data: any) => void;
 
+function buildWsUrl(token: string): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+  let origin: string;
+
+  if (/^https?:\/\//.test(apiUrl)) {
+    origin = new URL(apiUrl).origin;
+  } else {
+    origin = typeof window !== 'undefined' ? window.location.origin : '';
+  }
+
+  const scheme = origin.startsWith('https:') ? 'wss:' : 'ws:';
+  return `${scheme}//${origin.replace(/^https?:/, '')}/ws?token=${encodeURIComponent(token)}`;
+}
+
+const MAX_RECONNECT_DELAY_MS = 30_000;
+
 export function useWebSocket(token?: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const tokenRef = useRef<string | null>(token ?? null);
   const callbacksRef = useRef<Map<string, Set<EventCallback>>>(new Map());
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disposedRef = useRef(false);
+  const attemptRef = useRef(0);
+  const [isConnected, setIsConnected] = useState(false);
+
+  tokenRef.current = token ?? null;
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    try {
-      const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
-      const ws = new WebSocket(url);
-
-      ws.onopen = () => {
-        setIsConnected(true);
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        reconnectTimeoutRef.current = setTimeout(connect, 5000);
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          const { event: eventType, data } = message;
-
-          const callbacks = callbacksRef.current.get(eventType) || new Set();
-          callbacks.forEach((cb) => cb(data));
-
-          if (eventType.startsWith('appointment:') || eventType === 'admin:notification') {
-            setNotifications((prev) => [{ id: `${eventType}_${Date.now()}`, event: eventType, data, timestamp: new Date().toISOString() }, ...prev].slice(0, 50));
-          }
-        } catch {
-          // ignore parse errors
-        }
-      };
-
-      wsRef.current = ws;
-    } catch (err) {
-      console.error('WebSocket connection failed:', err);
-      reconnectTimeoutRef.current = setTimeout(connect, 5000);
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
-  }, [token]);
+
+    const wsToken = tokenRef.current;
+    if (!wsToken) {
+      setIsConnected(false);
+      return;
+    }
+
+    const current = wsRef.current;
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(buildWsUrl(wsToken));
+    } catch (error) {
+      console.error('WebSocket creation failed:', error);
+      return;
+    }
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      attemptRef.current = 0;
+      setIsConnected(true);
+    };
+
+    ws.onclose = () => {
+      if (wsRef.current === ws) wsRef.current = null;
+      setIsConnected(false);
+      if (disposedRef.current) return;
+
+      const delay = Math.min(1000 * 2 ** attemptRef.current, MAX_RECONNECT_DELAY_MS);
+      attemptRef.current += 1;
+      reconnectTimerRef.current = setTimeout(connect, delay);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data as string);
+        const { event: eventType, data } = message;
+        const callbacks = callbacksRef.current.get(eventType) || new Set();
+        callbacks.forEach((cb) => cb(data));
+      } catch {
+        // Ignore malformed frames
+      }
+    };
+  }, []);
 
   const on = useCallback((event: string, callback: EventCallback) => {
     if (!callbacksRef.current.has(event)) {
       callbacksRef.current.set(event, new Set());
     }
-    callbacksRef.current.get(event)!.add(callback);
+    const set = callbacksRef.current.get(event)!;
+    set.add(callback);
 
     return () => {
-      callbacksRef.current.get(event)?.delete(callback);
+      set.delete(callback);
     };
   }, []);
 
   const ping = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ event: 'ping' }));
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ event: 'ping' }));
     }
   }, []);
 
   useEffect(() => {
+    disposedRef.current = false;
     connect();
 
     return () => {
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      disposedRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       wsRef.current?.close();
+      wsRef.current = null;
+      setIsConnected(false);
     };
-  }, [connect]);
+  }, [token, connect]);
 
-  return { isConnected, notifications, on, ping };
+  return { isConnected, on, ping };
 }

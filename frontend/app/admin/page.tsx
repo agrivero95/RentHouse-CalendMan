@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -25,6 +25,15 @@ export default function AdminPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [blockingAll, setBlockingAll] = useState(false);
 
+  const loadData = useCallback(async () => {
+    await Promise.all([
+      api.get('/appointments').then((res) => setAppointments(res.data)),
+      api.get('/properties').then((res) => setProperties(res.data)),
+      api.get('/clients').then((res) => setClients(res.data)),
+      api.get('/owners').then((res) => setOwners(res.data)),
+    ]);
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -32,13 +41,16 @@ export default function AdminPage() {
       return;
     }
 
-    Promise.all([
-      api.get('/appointments').then((res) => setAppointments(res.data)),
-      api.get('/properties').then((res) => setProperties(res.data)),
-      api.get('/clients').then((res) => setClients(res.data)),
-      api.get('/owners').then((res) => setOwners(res.data)),
-    ]).finally(() => setLoading(false));
-  }, [router]);
+    loadData().finally(() => setLoading(false));
+  }, [router, loadData]);
+
+  useEffect(() => {
+    const onDataChanged = () => {
+      loadData();
+    };
+    window.addEventListener('rent-data-changed', onDataChanged);
+    return () => window.removeEventListener('rent-data-changed', onDataChanged);
+  }, [loadData]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -68,6 +80,14 @@ export default function AdminPage() {
       setLoadingSlots(false);
     }
   };
+
+  useEffect(() => {
+    const onSlotsChanged = () => {
+      if (activeTab === 'calendar') fetchSlots();
+    };
+    window.addEventListener('rent-data-changed', onSlotsChanged);
+    return () => window.removeEventListener('rent-data-changed', onSlotsChanged);
+  }, [activeTab, fetchSlots, selectedProperty, selectedDate]);
 
   const blockAllSlots = async (type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') => {
     if (!selectedProperty || !selectedDate) return;

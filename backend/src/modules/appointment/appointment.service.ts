@@ -7,6 +7,8 @@ import { NotificationService } from '../notification/notification.service';
 import { WebSocketService, WsEventTypes } from '../../gateway/websocket.service';
 import { toISO, fromISO } from '../../config/date.utils';
 
+const FALLBACK_ADMIN_UUID = '00000000-0000-4000-8000-000000000000';
+
 @Injectable()
 export class AppointmentService {
   constructor(
@@ -375,6 +377,8 @@ export class AppointmentService {
       throw new BadRequestException('Token ya utilizado');
     }
 
+    const adminUser = await this.prisma.adminUser.findFirst({ select: { id: true } });
+
     await this.prisma.$transaction([
       this.prisma.appointment.update({
         where: { id: confirmationToken.appointmentId },
@@ -399,7 +403,7 @@ export class AppointmentService {
       this.prisma.notification.create({
         data: {
           appointmentId: confirmationToken.appointmentId,
-          recipientId: 'admin',
+          recipientId: adminUser?.id || FALLBACK_ADMIN_UUID,
           recipientType: 'ADMIN',
           type: 'APPOINTMENT_CONFIRMED',
           title: 'Cita Confirmada por Cliente',
@@ -412,12 +416,25 @@ export class AppointmentService {
 
     await this.emailService.sendConfirmationEmail(confirmationToken.appointmentId);
 
+    const adminNotification = await this.prisma.notification.findFirst({
+      where: {
+        appointmentId: confirmationToken.appointmentId,
+        recipientType: 'ADMIN',
+      },
+      include: { appointment: { include: { client: true, property: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
     this.websocketService.broadcast(WsEventTypes.APPOINTMENT_CONFIRMED, {
       appointmentId: confirmationToken.appointmentId,
       clientId: confirmationToken.appointment.clientId,
       propertyId: confirmationToken.appointment.propertyId,
       clientName: confirmationToken.appointment.client.name,
     });
+
+    if (adminNotification) {
+      this.websocketService.broadcast(WsEventTypes.ADMIN_NOTIFICATION, adminNotification);
+    }
 
     return {
       success: true,
