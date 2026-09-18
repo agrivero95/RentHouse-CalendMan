@@ -133,7 +133,7 @@ export const calendarApi = {
   getSlots: (propertyId: string, date: string) =>
     api.get(`/calendar/available/${propertyId}`, { params: { date } }),
   blockSlots: (propertyId: string, date: string, type: string) =>
-    api.post(`/calendar/block/${propertyId}`, null, { params: { date, type } }),
+    api.post(`/calendar/block/${propertyId}`, {}, { params: { date, type } }),
   getMonthSlots: (startDate: string, endDate: string) =>
     api.get('/calendar/month', { params: { startDate, endDate } }),
   getAvailableDays: (propertyId: string, startDate: string, endDate: string) =>

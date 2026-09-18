@@ -205,18 +205,18 @@ export class CalendarService {
     const [eh, em] = endTime.split(':').map(Number);
 
     const createdSlots: any[] = [];
-    let currentHour = sh;
-    let currentMinute = sm;
+    const startTotal = sh * 60 + sm;
+    const endTotal = eh * 60 + em;
+    let currentTotal = startTotal;
 
-    while (currentHour < eh || (currentHour === eh && currentMinute < em)) {
-      const start = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-
-      let endHour = currentHour;
-      let endMinute = currentMinute + duration;
-      if (endMinute >= 60) {
-        endMinute -= 60;
-        endHour += 1;
-      }
+    while (currentTotal < endTotal) {
+      const startTotalFormatted = currentTotal;
+      const endTotalFormatted = Math.min(currentTotal + duration, endTotal);
+      const startHour = Math.floor(startTotalFormatted / 60);
+      const startMinute = startTotalFormatted % 60;
+      const endHour = Math.floor(endTotalFormatted / 60);
+      const endMinute = endTotalFormatted % 60;
+      const start = `${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}`;
       const end = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
 
       const existing = await this.prisma.timeSlot.findUnique({
@@ -230,14 +230,11 @@ export class CalendarService {
       });
 
       if (existing) {
-        await this.prisma.timeSlot.update({
+        const updated = await this.prisma.timeSlot.update({
           where: { id: existing.id },
           data: { type, endTime: end },
         });
-        createdSlots.push(await this.prisma.timeSlot.update({
-          where: { id: existing.id },
-          data: { type, endTime: end },
-        }));
+        createdSlots.push(updated);
       } else {
         const created = await this.prisma.timeSlot.create({
           data: {
@@ -251,11 +248,7 @@ export class CalendarService {
         createdSlots.push(created);
       }
 
-      currentMinute += duration;
-      if (currentMinute >= 60) {
-        currentMinute = 0;
-        currentHour += 1;
-      }
+      currentTotal += duration;
     }
 
     return createdSlots;

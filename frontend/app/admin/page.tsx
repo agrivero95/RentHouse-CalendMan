@@ -66,12 +66,14 @@ export default function AdminPage() {
   const confirmedCount = appointments.filter((apt) => apt.status === 'CONFIRMED').length;
   const pendingCount = appointments.filter((apt) => apt.status === 'PENDING').length;
 
-  const fetchSlots = async () => {
-    if (!selectedProperty || !selectedDate) return;
+  const fetchSlots = async (propertyId?: string, date?: string) => {
+    const propId = propertyId || selectedProperty;
+    const dateStr = date || selectedDate;
+    if (!propId || !dateStr) return;
     setLoadingSlots(true);
     try {
-      const response = await api.get(`/calendar/available/${selectedProperty}`, {
-        params: { date: toBackend(selectedDate) },
+      const response = await api.get(`/calendar/available/${propId}`, {
+        params: { date: toBackend(dateStr) },
       });
       setSlotsData(response.data);
     } catch (error) {
@@ -93,7 +95,7 @@ export default function AdminPage() {
     if (!selectedProperty || !selectedDate) return;
     setBlockingAll(true);
     try {
-      await api.post(`/calendar/block/${selectedProperty}`, null, {
+      await api.post(`/calendar/block/${selectedProperty}`, {}, {
         params: { date: toBackend(selectedDate), type },
       });
       await fetchSlots();
@@ -116,34 +118,6 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error updating slot:', error);
       alert('Error updating slot');
-    }
-  };
-
-  const [showCustomSlots, setShowCustomSlots] = useState(false);
-  const [customSlotsForm, setCustomSlotsForm] = useState({
-    startTime: '09:00',
-    endTime: '17:00',
-    duration: 15,
-    type: 'AVAILABLE' as 'AVAILABLE' | 'RESERVED' | 'BLOCKED',
-  });
-  const [creatingSlots, setCreatingSlots] = useState(false);
-
-  const createCustomSlots = async () => {
-    if (!selectedProperty || !selectedDate) return;
-    setCreatingSlots(true);
-    try {
-      await api.post('/calendar/custom-slots', {
-        propertyId: selectedProperty,
-        date: toBackend(selectedDate),
-        ...customSlotsForm,
-      });
-      await fetchSlots();
-      setShowCustomSlots(false);
-    } catch (err: any) {
-      console.error('Error creating slots:', err);
-      alert(err.response?.data?.message || 'Error creating slots');
-    } finally {
-      setCreatingSlots(false);
     }
   };
 
@@ -550,7 +524,7 @@ function CalendarTab({
   slotsData: any;
   setSlotsData: (v: any) => void;
   loadingSlots: boolean;
-  fetchSlots: () => Promise<void>;
+  fetchSlots: (propertyId?: string, date?: string) => Promise<void>;
   blockAllSlots: (type: 'AVAILABLE' | 'RESERVED' | 'BLOCKED') => Promise<void>;
   blockingAll: boolean;
   cycleSlotType: (slot: any) => Promise<void>;
@@ -648,6 +622,11 @@ function CalendarTab({
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     setSelectedDate(dateStr);
     setViewMode('day');
+    if (selectedProperty) {
+      fetchSlots(selectedProperty, dateStr);
+    } else {
+      setSlotsData(null);
+    }
   };
 
   const getDayStatus = (day: number) => {
@@ -1015,7 +994,7 @@ function CalendarTab({
 
             <div className="flex items-end">
               <button
-                onClick={fetchSlots}
+                onClick={() => fetchSlots()}
                 disabled={!selectedProperty || loadingSlots}
                 className="btn-primary w-full disabled:opacity-50"
               >
