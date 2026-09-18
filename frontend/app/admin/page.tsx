@@ -320,7 +320,7 @@ export default function AdminPage() {
                       {filteredAppointments.map((apt) => (
                         <tr key={apt.id} className={apt.status === 'CONFIRMED' ? 'bg-green-50' : ''}>
                           <td className="px-6 py-4">{new Date(apt.dateSet).toLocaleDateString()}</td>
-                          <td className="px-6 py-4">{new Date(apt.timeSet).toLocaleTimeString()}</td>
+                          <td className="px-6 py-4">{apt.timeSet}</td>
                           <td className="px-6 py-4">
                             <div>
                               <div className="font-medium text-gray-900">{apt.client?.name} {apt.client?.lastName1}</div>
