@@ -666,14 +666,23 @@ function CalendarTab({
     return 'mixed';
   };
 
-  const getDayAppointments = (day: number) => {
-    if (!monthData) return [];
+  const getDayReservedEntries = (day: number) => {
+    if (!monthData?.slots) return [];
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return monthData.appointments?.filter((apt: any) => {
-      const aptDate = new Date(apt.dateSet);
-      const aptDateStr = `${aptDate.getFullYear()}-${String(aptDate.getMonth() + 1).padStart(2, '0')}-${String(aptDate.getDate()).padStart(2, '0')}`;
-      return aptDateStr === dateStr;
-    }) || [];
+    return (monthData.slots as any[])
+      .filter((s: any) => s.type === 'RESERVED' && toFrontend(s.date) === dateStr)
+      .map((s: any) => {
+        const prop = properties.find((p: any) => p.id === s.propertyId);
+        const { hours: sh, minutes: sm } = parseTime(s.startTime);
+        const { hours: eh, minutes: em } = parseTime(s.endTime);
+        return {
+          id: s.id,
+          startTime: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
+          endTime: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`,
+          address: prop?.address || 'Property',
+        };
+      })
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
   };
 
   const dayStatusColors: Record<string, string> = {
@@ -779,31 +788,6 @@ function CalendarTab({
                 return slotDate === dateStr && s.propertyId === selectedProperty;
               }) || [];
 
-              const dayAppointments = monthData?.appointments?.filter((apt: any) => {
-                const aptDate = new Date(apt.dateSet);
-                const aptDateStr = `${aptDate.getFullYear()}-${String(aptDate.getMonth() + 1).padStart(2, '0')}-${String(aptDate.getDate()).padStart(2, '0')}`;
-                return aptDateStr === dateStr;
-              }) || [];
-
-              const propertyBreakdown: Record<string, Record<string, number>> = {};
-              let hasPersonalTime = false;
-              let personalMinutes = 0;
-
-              daySlots.forEach((slot: any) => {
-                if (!propertyBreakdown[slot.propertyId]) {
-                  propertyBreakdown[slot.propertyId] = { AVAILABLE: 0, RESERVED: 0, BLOCKED: 0 };
-                }
-                propertyBreakdown[slot.propertyId][slot.type] = (propertyBreakdown[slot.propertyId][slot.type] || 0) + 1;
-                if (slot.type === 'RESERVED') {
-                  hasPersonalTime = true;
-                  const { hours: startH, minutes: startM } = parseTime(slot.startTime);
-                  const { hours: endH, minutes: endM } = parseTime(slot.endTime);
-                  const startMinutes = startH * 60 + startM;
-                  const endMinutes = endH * 60 + endM;
-                  personalMinutes += (endMinutes - startMinutes);
-                }
-              });
-
               const dominantType = daySlots.length > 0
                 ? daySlots.reduce((acc: any, slot: any) => {
                     acc[slot.type] = (acc[slot.type] || 0) + 1;
@@ -830,11 +814,13 @@ function CalendarTab({
                 BLOCKED: 'bg-red-500',
               };
 
+              const dayReservedEntries = getDayReservedEntries(day);
+
               return (
                 <button
                   key={day}
                   onClick={() => handleDayClick(day)}
-                  className={`aspect-square p-1 rounded-lg border-2 text-left transition-all ${
+                  className={`aspect-square p-1.5 rounded-lg border-2 text-left transition-all overflow-hidden ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50'
                       : isToday
@@ -851,37 +837,24 @@ function CalendarTab({
                     }`}>
                       {day}
                     </span>
-                    {daySlots.length > 0 && (
-                      <div className="flex flex-wrap gap-0.5 mt-1">
-                        {Object.entries(propertyBreakdown).slice(0, 3).map(([propId, counts]) => {
-                          const prop = properties.find((p: any) => p.id === propId);
-                          const hasAvailable = (counts.AVAILABLE || 0) > 0;
-                          const hasReserved = (counts.RESERVED || 0) > 0;
-                          const hasBlocked = (counts.BLOCKED || 0) > 0;
-                          return (
-                            <div key={propId} className="flex flex-col items-center" title={prop?.address || propId}>
-                              <span className="text-[8px] truncate w-full text-center text-gray-400 leading-none" style={{ fontSize: '7px' }}>
-                                {prop?.address?.split(' ').pop() || '?'}
-                              </span>
-                              <div className="flex gap-0.5">
-                                {hasAvailable && <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />}
-                                {hasReserved && <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />}
-                                {hasBlocked && <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />}
-                              </div>
-                            </div>
-                          );
-                        })}
+                    {dayReservedEntries.length > 0 && (
+                      <div className="mt-1 flex flex-col gap-0.5 overflow-hidden">
+                        {dayReservedEntries.slice(0, 3).map((entry: any) => (
+                          <div
+                            key={entry.id}
+                            className="rounded border border-purple-200 bg-purple-50 px-1 py-0.5 leading-tight"
+                            title={entry.address}
+                          >
+                            <span className="text-[9px] font-semibold text-purple-800 block">
+                              {entry.startTime} - {entry.endTime}
+                            </span>
+                            <div className="text-[8px] text-gray-600 truncate">{entry.address}</div>
+                          </div>
+                        ))}
+                        {dayReservedEntries.length > 3 && (
+                          <span className="text-[8px] text-gray-500">+{dayReservedEntries.length - 3} more</span>
+                        )}
                       </div>
-                    )}
-                    {hasPersonalTime && (
-                      <span className="text-[8px] text-purple-600 mt-auto" title={`${Math.round(personalMinutes)} min personal time`}>
-                        ⏰{Math.round(personalMinutes / 60)}h
-                      </span>
-                    )}
-                    {dayAppointments.length > 0 && (
-                      <span className="text-[8px] text-blue-600 mt-auto" title={`${dayAppointments.length} appointment(s)`}>
-                        📋{dayAppointments.length}
-                      </span>
                     )}
                   </div>
                 </button>
@@ -896,8 +869,7 @@ function CalendarTab({
               <span className="flex items-center"><span className="w-3 h-3 bg-red-500 rounded-full mr-1"></span> Blocked</span>
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-              <span className="flex items-center"><span className="text-purple-600 mr-1">⏰</span> Personal time shown</span>
-              <span className="flex items-center"><span className="text-blue-600 mr-1">📋</span> Appointments count</span>
+              <span className="flex items-center"><span className="text-purple-600 mr-1">🕐</span> Reserved block with property address</span>
               <span className="flex items-center"><span className="text-blue-500 mr-1">●</span> Today</span>
               <span className="flex items-center"><span className="border border-blue-500 rounded mr-1 px-0.5 text-blue-500">●</span> Selected day</span>
             </div>
