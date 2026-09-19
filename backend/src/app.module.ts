@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { PrismaModule } from './config/prisma.module';
 import { WebSocketModule } from './gateway/websocket.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WebSocketModule } from './gateway/websocket.module';
     AuthModule,
     NotificationModule,
     WebSocketModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
