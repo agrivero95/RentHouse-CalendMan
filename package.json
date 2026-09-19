@@ -10,6 +10,9 @@
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
+    "start:frontend": "npm run start --workspace=frontend",
+    "start:prod:backend": "npm run start:prod --workspace=backend",
+    "start:prod:frontend": "npm run start:prod --workspace=frontend",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build": "npm run build --workspaces",
     "docker:up": "docker-compose up -d",
